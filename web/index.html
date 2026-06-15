@@ -152,8 +152,8 @@ textarea{width:100%;min-height:220px;font-family:monospace;font-size:13px;paddin
 
 <script src="https://cdn.jsdelivr.net/npm/marked@9/marked.min.js"></script>
 <script>
-let BOARD={lanes:[],cards:{}}, PROJECTS=[], open=null, poll=null, mLane=null, reviewBulk=false;
-const reviewSel=new Set();
+let BOARD={lanes:[],cards:{}}, PROJECTS=[], open=null, poll=null, mLane=null, bulkLane=null;
+const bulkSel=new Set();
 const esc=s=>String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 const api=(p,m,b)=>fetch(p,{method:m||'GET',headers:{'Content-Type':'application/json'},body:b?JSON.stringify(b):undefined}).then(r=>r.json());
 // Themed replacement for native prompt(). Resolves the entered string, or null if cancelled.
@@ -230,17 +230,17 @@ function render(){
   const el=document.getElementById('board');
   el.innerHTML=BOARD.lanes.map(l=>{
     const cs=BOARD.cards[l.id]||[];
-    const bar=l.id==='review'?reviewBulkBar(cs):'';
+    const bar=bulkBar(l.id,cs);
     return `<div class="lane"><div class="lane-h" style="--lc:${lcolor(l)}">
       <span class="lane-n">${esc(l.name)}</span><span class="lane-c">${cs.length}</span></div>
       <div class="lane-b" data-lane="${esc(l.id)}">${bar}${cs.map(c=>cardHtml(c,l.id)).join('')||'<div class="empty" style="padding:6px">—</div>'}</div></div>`;
   }).join('');
   el.querySelectorAll('.card').forEach(x=>{
     const lane=x.dataset.lane,id=x.dataset.id;
-    if(lane==='review'&&reviewBulk){
+    if(lane===bulkLane){
       x.setAttribute('draggable','false');
-      if(reviewSel.has(id))x.classList.add('sel');
-      x.onclick=()=>{reviewSel.has(id)?reviewSel.delete(id):reviewSel.add(id);render();};
+      if(bulkSel.has(id))x.classList.add('sel');
+      x.onclick=()=>{bulkSel.has(id)?bulkSel.delete(id):bulkSel.add(id);render();};
     }else x.onclick=()=>{if(!dragId)openCard(lane,id);};
   });
   wireDnD();
@@ -249,20 +249,26 @@ function render(){
   applyMobileLane();
   initBoardSwipe();
 }
-function reviewBulkBar(cs){
-  if(!reviewBulk)return cs.length?`<button class="btn btn-g bulkbtn" data-bulk="start">☑ Select</button>`:'';
-  return `<div class="bulkbar"><span>${reviewSel.size} selected</span>
+function bulkBar(laneId,cs){
+  if(bulkLane!==laneId)return cs.length?`<button class="btn btn-g bulkbtn" data-bulk="start" data-bl="${esc(laneId)}">☑ Select</button>`:'';
+  const moveDone=laneId==='review'?`<button class="btn btn-p" data-bulk="done">Done →</button>`:'';
+  return `<div class="bulkbar"><span>${bulkSel.size} selected</span>
     <button class="btn btn-g" data-bulk="all">All</button>
-    <button class="btn btn-p" data-bulk="done">Move to Done →</button>
+    ${moveDone}
+    <button class="btn btn-g" data-bulk="archive">📥 Archive</button>
+    <button class="btn btn-danger" data-bulk="delete">🗑 Delete</button>
     <button class="btn btn-g" data-bulk="cancel">✕</button></div>`;
 }
 function wireBulk(){
-  document.querySelectorAll('#board [data-bulk]').forEach(b=>b.onclick=e=>{e.stopPropagation();const a=b.dataset.bulk;
-    if(a==='start'){reviewBulk=true;render();}
-    else if(a==='cancel'){reviewBulk=false;reviewSel.clear();render();}
-    else if(a==='all'){const cs=BOARD.cards['review']||[];const all=cs.length&&cs.every(c=>reviewSel.has(c.id));cs.forEach(c=>all?reviewSel.delete(c.id):reviewSel.add(c.id));render();}
-    else if(a==='done'){const ids=[...reviewSel];if(!ids.length){reviewBulk=false;render();return;}
-      api('/api/bulkmove','POST',{from:'review',to:'done',ids}).then(()=>{reviewBulk=false;reviewSel.clear();load();});}
+  document.querySelectorAll('#board [data-bulk]').forEach(b=>b.onclick=async e=>{e.stopPropagation();const a=b.dataset.bulk;
+    if(a==='start'){bulkLane=b.dataset.bl;bulkSel.clear();render();return;}
+    if(a==='cancel'){bulkLane=null;bulkSel.clear();render();return;}
+    if(a==='all'){const cs=BOARD.cards[bulkLane]||[];const all=cs.length&&cs.every(c=>bulkSel.has(c.id));cs.forEach(c=>all?bulkSel.delete(c.id):bulkSel.add(c.id));render();return;}
+    const ids=[...bulkSel];if(!ids.length){bulkLane=null;render();return;}
+    if(a==='done'){await api('/api/bulkmove','POST',{from:bulkLane,to:'done',ids});}
+    else if(a==='archive'){if(!await confirmBox(`Archive ${ids.length} card(s)?`,'They’ll be hidden from the board but kept in the board’s archive/ folder.','Archive'))return;await api('/api/bulkarchive','POST',{lane:bulkLane,ids});}
+    else if(a==='delete'){if(!await confirmBox(`Delete ${ids.length} card(s)?`,'This permanently removes them and their files from disk. This cannot be undone.','Delete forever'))return;await api('/api/bulkdelete','POST',{lane:bulkLane,ids});}
+    bulkLane=null;bulkSel.clear();load();
   });
 }
 let dragId=null, dragFrom=null;
@@ -432,7 +438,7 @@ function openProject(id){api('/api/projects').then(ps=>{PROJECTS=ps;const p=ps.f
   showSheet(`<div class="sheet-h"><button class="x" id="back">←</button><div class="sheet-t">${p.done?'✅':'🎯'} ${esc(projTitle(p))}</div><button class="x" data-x>×</button></div>
    <div class="sheet-b">
     ${p.done?'<div class="meta"><span class="tag tag-proj">✅ done — hidden from the project picker</span></div>':''}
-    <div style="margin-bottom:12px;display:flex;gap:6px;flex-wrap:wrap"><button class="btn btn-g" id="edit">✏️ Edit goal</button><button class="btn btn-g" id="done">${p.done?'↩ Reopen':'✅ Mark done'}</button><button class="btn btn-danger" id="delproj">🗑 Delete</button></div>
+    <div style="margin-bottom:12px;display:flex;gap:6px;flex-wrap:wrap"><button class="btn btn-g" id="edit">✏️ Edit goal</button><button class="btn btn-g" id="done">${p.done?'↩ Reopen':'✅ Mark done'}</button><button class="btn btn-g" id="archproj">📥 Archive</button><button class="btn btn-danger" id="delproj">🗑 Delete</button></div>
     <div class="md" id="md"></div>
     <div class="label">Shared docs</div>${docsHtml2(p.docs)}
     <div style="margin-top:8px"><button class="btn btn-g" id="adddoc">+ Doc</button></div>
@@ -442,7 +448,8 @@ function openProject(id){api('/api/projects').then(ps=>{PROJECTS=ps;const p=ps.f
   document.getElementById('md').innerHTML=p.goal?marked.parse(p.goal):'<span class="empty">No goal written yet.</span>';
   document.getElementById('back').onclick=openProjects;
   document.getElementById('done').onclick=()=>api('/api/project/done','POST',{id,done:!p.done}).then(()=>openProject(id));
-  document.getElementById('delproj').onclick=()=>confirmBox('Delete project?','“'+projTitle(p)+'” will be moved to the trash folder. Its epics/tickets are NOT deleted — they just lose the project tag.','Move to trash').then(ok=>{if(ok)api('/api/project/delete','POST',{id}).then(load).then(openProjects);});
+  document.getElementById('archproj').onclick=()=>confirmBox('Archive project?','“'+projTitle(p)+'” will be hidden and kept in the board’s archive/ folder. Its epics/tickets are NOT touched — they just lose the project tag.','Archive').then(ok=>{if(ok)api('/api/project/archive','POST',{id}).then(load).then(openProjects);});
+  document.getElementById('delproj').onclick=()=>confirmBox('Delete project?','“'+projTitle(p)+'” will be permanently removed from disk. This cannot be undone. Its epics/tickets are NOT deleted — they just lose the project tag.','Delete forever').then(ok=>{if(ok)api('/api/project/delete','POST',{id}).then(load).then(openProjects);});
   const mk=type=>askText('New '+type,type.charAt(0).toUpperCase()+type.slice(1)+' title').then(t=>{if(t&&t.trim())api('/api/create','POST',{type,title:t.trim(),project:id}).then(load).then(()=>openProject(id));});
   document.getElementById('addt').onclick=()=>mk('ticket');
   document.getElementById('adde').onclick=()=>mk('epic');
@@ -565,7 +572,7 @@ function openCard(lane,id){
     <div class="meta"><span class="tag" style="background:${lcolor(ln)};color:#fff">${esc(ln.name)}</span>${targetTag(c)}${statusTag(c.status,lane)}${c.paused?'<span class="tag tag-pause">⏸ paused</span>':''}</div>
     ${moveBar(lane,id)}
     ${projectSelect(c,{lane,id})}
-    <div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap"><button class="btn btn-g" id="edit">✏️ Edit</button>${uploadCtrl()}<button class="btn btn-danger" id="del">🗑 Delete</button></div>
+    <div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap"><button class="btn btn-g" id="edit">✏️ Edit</button>${uploadCtrl()}<button class="btn btn-g" id="arch">📥 Archive</button><button class="btn btn-danger" id="del">🗑 Delete</button></div>
     <div class="md" id="md"></div>${artHtml(c)}${assetHtml(c)}
     ${reviewSection(c,{lane,id})}
     <div class="label">Activity log</div><div id="log"></div>
@@ -578,7 +585,8 @@ function openCard(lane,id){
   wireAssets();
   wireReview({lane,id});
   document.getElementById('edit').onclick=()=>editBody({lane,id},c.content,()=>openCard(lane,id));
-  document.getElementById('del').onclick=()=>confirmBox('Delete ticket?','“'+(c.title||id)+'” will be moved to the trash folder (not permanently removed).','Move to trash').then(ok=>{if(ok)api('/api/delete','POST',{lane,id}).then(()=>{close();load();});});
+  document.getElementById('arch').onclick=()=>confirmBox('Archive ticket?','“'+(c.title||id)+'” will be hidden from the board but kept in the board’s archive/ folder.','Archive').then(ok=>{if(ok)api('/api/archive','POST',{lane,id}).then(()=>{close();load();});});
+  document.getElementById('del').onclick=()=>confirmBox('Delete ticket?','“'+(c.title||id)+'” and its files will be permanently removed from disk. This cannot be undone.','Delete forever').then(ok=>{if(ok)api('/api/delete','POST',{lane,id}).then(()=>{close();load();});});
 }
 function openEpic(lane,id){
   const c=find(lane,id);if(!c)return;open={lane,id,kind:'epic'};
@@ -589,7 +597,7 @@ function openEpic(lane,id){
     <div class="pbar"><div class="pfill" style="width:${pct}%"></div></div><div class="ptext" style="margin-bottom:12px">${p.done}/${p.total} tickets · ${c.parallel?'parallel':'sequential'}</div>
     ${moveBar(lane,id)}
     ${projectSelect(c,{lane,id})}
-    <div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap"><button class="btn btn-g" id="edit">✏️ Edit</button><button class="btn btn-g" id="pause">${c.paused?'▶ Unpause':'⏸ Pause'}</button>${uploadCtrl()}<button class="btn btn-danger" id="del">🗑 Delete</button></div>
+    <div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap"><button class="btn btn-g" id="edit">✏️ Edit</button><button class="btn btn-g" id="pause">${c.paused?'▶ Unpause':'⏸ Pause'}</button>${uploadCtrl()}<button class="btn btn-g" id="arch">📥 Archive</button><button class="btn btn-danger" id="del">🗑 Delete</button></div>
     <div class="md" id="md"></div>${epicProductHtml(c)}${assetHtml(c)}
     <div class="label">Shared docs</div>${docsHtml(c)}
     <div style="margin-top:8px"><button class="btn btn-g" id="adddoc">+ Doc</button></div>
@@ -606,7 +614,8 @@ function openEpic(lane,id){
   wireAssets();
   wireReview({lane,id});
   document.getElementById('edit').onclick=()=>editBody({lane,id},c.content,()=>openEpic(lane,id));
-  document.getElementById('del').onclick=()=>confirmBox('Delete epic?','“'+(c.title||id)+'” and its '+p.total+' ticket(s) will be moved to the trash folder (not permanently removed).','Move to trash').then(ok=>{if(ok)api('/api/delete','POST',{lane,id}).then(()=>{close();load();});});
+  document.getElementById('arch').onclick=()=>confirmBox('Archive epic?','“'+(c.title||id)+'” and its '+p.total+' ticket(s) will be hidden from the board but kept in the board’s archive/ folder.','Archive').then(ok=>{if(ok)api('/api/archive','POST',{lane,id}).then(()=>{close();load();});});
+  document.getElementById('del').onclick=()=>confirmBox('Delete epic?','“'+(c.title||id)+'” and its '+p.total+' ticket(s) will be permanently removed from disk. This cannot be undone.','Delete forever').then(ok=>{if(ok)api('/api/delete','POST',{lane,id}).then(()=>{close();load();});});
   document.querySelectorAll('[data-t]').forEach(r=>r.onclick=()=>openTicket(lane,id,r.dataset.t));
   document.querySelectorAll('[data-doc]').forEach(r=>r.onclick=()=>openDoc(lane,id,r.dataset.doc));
   document.getElementById('adddoc').onclick=()=>askText('New shared doc','Doc name (e.g. spec)').then(n=>{
@@ -636,7 +645,7 @@ function openTicket(lane,id,tid){
   showSheet(`<div class="sheet-h"><button class="x" id="back">←</button><div class="sheet-t">${esc(t.title)}</div><button class="x" data-x>×</button></div>
    <div class="sheet-b">
     <div class="meta">${targetTag(t)}${statusTag(t.status)}${t.paused?'<span class="tag tag-pause">⏸ paused</span>':''}</div>
-    <div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap"><button class="btn btn-g" id="edit">✏️ Edit</button>${uploadCtrl()}<button class="btn btn-danger" id="del">🗑 Delete</button></div>
+    <div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap"><button class="btn btn-g" id="edit">✏️ Edit</button>${uploadCtrl()}<button class="btn btn-g" id="arch">📥 Archive</button><button class="btn btn-danger" id="del">🗑 Delete</button></div>
     <div class="md" id="md"></div>${artHtml(t)}${assetHtml(t)}
     ${reviewSection(t,{lane,id,ticketId:tid})}
     <div class="label">Activity log</div><div id="log"></div>
@@ -648,7 +657,8 @@ function openTicket(lane,id,tid){
   wireReview({lane,id,ticketId:tid});
   document.getElementById('back').onclick=()=>openEpic(lane,id);
   document.getElementById('edit').onclick=()=>editBody({lane,id,ticketId:tid},t.content,()=>openTicket(lane,id,tid));
-  document.getElementById('del').onclick=()=>confirmBox('Delete ticket?','“'+(t.title||tid)+'” will be moved to the trash folder (not permanently removed).','Move to trash').then(ok=>{if(ok)api('/api/delete','POST',{lane,id,ticketId:tid}).then(()=>load()).then(()=>openEpic(lane,id));});
+  document.getElementById('arch').onclick=()=>confirmBox('Archive ticket?','“'+(t.title||tid)+'” will be hidden from the board but kept in the board’s archive/ folder.','Archive').then(ok=>{if(ok)api('/api/archive','POST',{lane,id,ticketId:tid}).then(()=>load()).then(()=>openEpic(lane,id));});
+  document.getElementById('del').onclick=()=>confirmBox('Delete ticket?','“'+(t.title||tid)+'” and its files will be permanently removed from disk. This cannot be undone.','Delete forever').then(ok=>{if(ok)api('/api/delete','POST',{lane,id,ticketId:tid}).then(()=>load()).then(()=>openEpic(lane,id));});
 }
 function wireActions(ctx){
   const ms=document.getElementById('msel');
@@ -670,6 +680,6 @@ document.getElementById('proj').onclick=openProjects;
 document.getElementById('ov').onclick=e=>{if(e.target.id==='ov')close();};
 document.getElementById('add-t').onclick=()=>askText('New ticket','Ticket title').then(t=>{if(t&&t.trim())api('/api/create','POST',{type:'ticket',title:t.trim()}).then(load);});
 document.getElementById('add-e').onclick=()=>askText('New epic','Epic title').then(t=>{if(t&&t.trim())api('/api/create','POST',{type:'epic',title:t.trim()}).then(load);});
-load();poll=setInterval(()=>{if(!dragId&&!reviewBulk&&document.getElementById('ov').classList.contains('hidden'))load();},4000);
+load();poll=setInterval(()=>{if(!dragId&&!bulkLane&&document.getElementById('ov').classList.contains('hidden'))load();},4000);
 </script>
 </body></html>

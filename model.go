@@ -488,23 +488,35 @@ func bulkMove(ids []string, from, to string) []string {
 	return moved
 }
 
-func trashDir() string {
-	d := mustJoin("trash")
+func archiveDir() string {
+	d := mustJoin("archive")
 	os.MkdirAll(d, 0o755)
 	return d
 }
 
 func stamp() string { return time.Now().Format("20060102-150405") }
 
-func trashCard(lane, cid, ticket string) error {
+// cardPath resolves a card or epic sub-ticket folder and a label for archive naming.
+func cardPath(lane, cid, ticket string) (src, label string, err error) {
 	if ticket != "" {
-		src := mustJoin("kanban", lane, cid, "tickets", ticket)
-		if !isDir(src) {
-			return fmt.Errorf("not found: %s", ticket)
+		src, label = mustJoin("kanban", lane, cid, "tickets", ticket), "ticket-"+ticket
+	} else {
+		src, label = mustJoin("kanban", lane, cid), lane+"-"+cid
+	}
+	if !isDir(src) {
+		id := cid
+		if ticket != "" {
+			id = ticket
 		}
-		if err := os.Rename(src, filepath.Join(trashDir(), stamp()+"-ticket-"+ticket)); err != nil {
-			return err
-		}
+		return "", "", fmt.Errorf("not found: %s", id)
+	}
+	return src, label, nil
+}
+
+// detach removes a card/ticket id from its parent ordering (lane order.json, or the epic's
+// epic.json for a sub-ticket) after its folder has been moved or removed.
+func detach(lane, cid, ticket string) error {
+	if ticket != "" {
 		ej := mustJoin("kanban", lane, cid, "epic.json")
 		e, _ := readJSON(ej).(map[string]any)
 		if e == nil {
@@ -513,14 +525,52 @@ func trashCard(lane, cid, ticket string) error {
 		e["order"] = without(toStringSlice(e["order"]), ticket)
 		return writeJSON(ej, e)
 	}
-	src := mustJoin("kanban", lane, cid)
-	if !isDir(src) {
-		return fmt.Errorf("not found: %s", cid)
-	}
-	if err := os.Rename(src, filepath.Join(trashDir(), stamp()+"-"+lane+"-"+cid)); err != nil {
+	return updateOrder(lane, func(o []string) []string { return without(o, cid) })
+}
+
+// archiveCard moves a card/epic/sub-ticket into archive/ — it disappears from the board but
+// its files are kept (under archive/<timestamp>-<label>/). Reversible: move the folder back.
+func archiveCard(lane, cid, ticket string) error {
+	src, label, err := cardPath(lane, cid, ticket)
+	if err != nil {
 		return err
 	}
-	return updateOrder(lane, func(o []string) []string { return without(o, cid) })
+	if err := os.Rename(src, filepath.Join(archiveDir(), stamp()+"-"+label)); err != nil {
+		return err
+	}
+	return detach(lane, cid, ticket)
+}
+
+// deleteCard permanently removes a card/epic/sub-ticket and all its files from disk.
+func deleteCard(lane, cid, ticket string) error {
+	src, _, err := cardPath(lane, cid, ticket)
+	if err != nil {
+		return err
+	}
+	if err := os.RemoveAll(src); err != nil {
+		return err
+	}
+	return detach(lane, cid, ticket)
+}
+
+func bulkArchive(ids []string, lane string) []string {
+	out := []string{}
+	for _, cid := range ids {
+		if archiveCard(lane, cid, "") == nil {
+			out = append(out, cid)
+		}
+	}
+	return out
+}
+
+func bulkDelete(ids []string, lane string) []string {
+	out := []string{}
+	for _, cid := range ids {
+		if deleteCard(lane, cid, "") == nil {
+			out = append(out, cid)
+		}
+	}
+	return out
 }
 
 func togglePause(lane, cid, ticket string) error {
@@ -778,11 +828,9 @@ func setProjectDone(pid string, done bool) error {
 	return writeJSON(filepath.Join(d, "project.json"), map[string]any{"done": done})
 }
 
-func trashProject(pid string) error {
-	src := mustJoin("projects", pid)
-	if !isDir(src) {
-		return fmt.Errorf("not found: %s", pid)
-	}
+// clearProjectTags removes the project tag from every member card (so they aren't left
+// pointing at a project that's gone).
+func clearProjectTags(pid string) {
 	snap := boardSnapshot()
 	for lane, cs := range snap["cards"].(map[string]any) {
 		for _, c := range cs.([]map[string]any) {
@@ -791,7 +839,26 @@ func trashProject(pid string) error {
 			}
 		}
 	}
-	return os.Rename(src, filepath.Join(trashDir(), stamp()+"-project-"+pid))
+}
+
+// archiveProject moves a project into archive/ (kept on disk); deleteProject removes it.
+// Both clear the project tag from member cards; neither touches the member cards otherwise.
+func archiveProject(pid string) error {
+	src := mustJoin("projects", pid)
+	if !isDir(src) {
+		return fmt.Errorf("not found: %s", pid)
+	}
+	clearProjectTags(pid)
+	return os.Rename(src, filepath.Join(archiveDir(), stamp()+"-project-"+pid))
+}
+
+func deleteProject(pid string) error {
+	src := mustJoin("projects", pid)
+	if !isDir(src) {
+		return fmt.Errorf("not found: %s", pid)
+	}
+	clearProjectTags(pid)
+	return os.RemoveAll(src)
 }
 
 // ─── small helpers ──────────────────────────────────────────────────────────

@@ -83,12 +83,17 @@ my-board/
   kanban/<lane>/<epic>/tickets/    # an epic's sub-tickets
   projects/<id>/                   # a project's goal + shared docs
   logs/                            # daily summaries + the agent feed
-  trash/                           # soft-deletes — nothing is ever hard-deleted
+  archive/                         # archived cards — hidden from the board, kept on disk
 ```
 
 Cards flow `planning → ready → in_progress → blocked → review → done`. **Test & Review is a
 human gate**: a worker leaves finished cards there; you approve them to Done or send them back
 with a comment. Run `cboard doctor` if a board ever gets out of sync.
+
+**Archive vs. delete.** Archiving a card takes it off the board but keeps its folder under
+`archive/` — handy for clearing out Done without losing anything. Deleting removes it and its
+files from disk for good. Both work on one card, or in bulk: hit **☑ Select** at the top of
+any lane to archive or delete a batch of Done cards at once.
 
 The dashboard is unauthenticated and binds to `127.0.0.1`. To reach it from your phone on a
 trusted network (e.g. Tailscale), add `--host 0.0.0.0`.

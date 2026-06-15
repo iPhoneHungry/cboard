@@ -120,7 +120,9 @@ func handlePOST(w http.ResponseWriter, r *http.Request) {
 	case "/api/project/savedoc":
 		err = saveProjectDoc(s("id"), s("name"), s("body"))
 	case "/api/project/delete":
-		err = trashProject(s("id"))
+		err = deleteProject(s("id"))
+	case "/api/project/archive":
+		err = archiveProject(s("id"))
 	case "/api/project/done":
 		done := true
 		if v, ok := d["done"].(bool); ok {
@@ -146,7 +148,9 @@ func handlePOST(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	case "/api/delete":
-		err = trashCard(s("lane"), s("id"), s("ticketId"))
+		err = deleteCard(s("lane"), s("id"), s("ticketId"))
+	case "/api/archive":
+		err = archiveCard(s("lane"), s("id"), s("ticketId"))
 	case "/api/review":
 		var n int
 		n, err = addReview(s("lane"), s("id"), s("ticketId"), s("comment"), s("to"))
@@ -157,6 +161,14 @@ func handlePOST(w http.ResponseWriter, r *http.Request) {
 	case "/api/bulkmove":
 		moved := bulkMove(toStringSlice(d["ids"]), s("from"), s("to"))
 		sendJSON(w, 200, map[string]any{"ok": true, "moved": moved})
+		return
+	case "/api/bulkarchive":
+		out := bulkArchive(toStringSlice(d["ids"]), s("lane"))
+		sendJSON(w, 200, map[string]any{"ok": true, "archived": out})
+		return
+	case "/api/bulkdelete":
+		out := bulkDelete(toStringSlice(d["ids"]), s("lane"))
+		sendJSON(w, 200, map[string]any{"ok": true, "deleted": out})
 		return
 	default:
 		errJSON(w, 404, fmt.Errorf("unknown action"))
