@@ -68,6 +68,18 @@ then pulls a specific sibling's full detail only when it helps, via `get_card(ep
 ticket=<id>)`. `next_card` also returns `next_ticket_detail` (the ticket to work, in full) so
 the common path needs no extra call.
 
+## Use it from any agent
+
+Because the interface is MCP, cboard isn't Claude-specific — any MCP-capable tool drives the
+same board:
+
+- **Claude Code** — `claude mcp add --transport http …` (above), plus the bundled
+  [`kanban-worker` skill](skills/kanban-worker/SKILL.md).
+- **Codex / Cursor / Cline / others** — add an HTTP MCP server pointing at `…/mcp` in the
+  tool's config, and read [`AGENTS.md`](AGENTS.md) — the canonical, tool-agnostic guide to
+  what cboard is, the tools, and how to act as a worker. The Claude skill is just the
+  Claude-flavored adapter of that same contract.
+
 ## The worker: bring your own, or use ours
 
 The board doesn't care who moves the cards — you can drive the MCP tools however you like. If
