@@ -13,10 +13,11 @@ jobs:
   release:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
         with:
           go-version: '1.22'
+          cache: false  # no go.sum (zero external deps) — skip the cache restore warning
       - name: Cross-compile
         run: |
           mkdir -p dist
@@ -28,7 +29,7 @@ jobs:
               go build -ldflags "-s -w" -o "dist/cboard-$os-$arch$ext" .
           done
           (cd dist && for f in *; do sha256sum "$f" >> checksums.txt; done)
-      - uses: softprops/action-gh-release@v2
+      - uses: softprops/action-gh-release@v3
         with:
           files: dist/*
           generate_release_notes: true
