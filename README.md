@@ -13,7 +13,7 @@ epics, and projects — without juggling a stack of SaaS tools to get there.
 And it's all local: no database, no account, no cloud, nothing leaving your machine. A task
 system you can actually run at work without making the security team lose their minds.
 
-[![release](https://img.shields.io/github/v/release/iPhoneHungry/cboard)](https://github.com/iPhoneHungry/cboard/releases/latest)
+[![ci](https://github.com/iPhoneHungry/cboard/actions/workflows/ci.yml/badge.svg)](https://github.com/iPhoneHungry/cboard/actions/workflows/ci.yml) [latest release](https://github.com/iPhoneHungry/cboard/releases/latest)
 
 ## 30 seconds to a board
 
