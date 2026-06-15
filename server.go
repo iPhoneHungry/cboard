@@ -10,6 +10,7 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 func sendJSON(w http.ResponseWriter, code int, v any) {
@@ -33,11 +34,24 @@ func guard(w http.ResponseWriter) {
 
 func handleGET(w http.ResponseWriter, r *http.Request) {
 	defer guard(w)
+	// Serialize against mutations so a poll never reads a half-written order.json/result.json.
+	boardMu.Lock()
+	defer boardMu.Unlock()
 	p := r.URL.Path
 	switch {
 	case p == "/" || p == "/index.html":
+		// CSP defence-in-depth: even if a stored-XSS payload slips past the sanitizer, it
+		// can't load external script, beacon to an attacker host, or frame off-origin.
+		w.Header().Set("Content-Security-Policy",
+			"default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; "+
+				"script-src 'self' 'unsafe-inline'; connect-src 'self'; frame-src 'self'; "+
+				"base-uri 'none'; form-action 'self'")
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.Write(pageHTML)
+	case p == "/vendor/marked.min.js":
+		serveAsset(w, "application/javascript; charset=utf-8", markedJS)
+	case p == "/vendor/purify.min.js":
+		serveAsset(w, "application/javascript; charset=utf-8", purifyJS)
 	case p == "/api/board":
 		sendJSON(w, 200, boardSnapshot())
 	case p == "/api/summary":
@@ -57,6 +71,10 @@ func handleGET(w http.ResponseWriter, r *http.Request) {
 			errJSON(w, 404, fmt.Errorf("not found"))
 			return
 		}
+		if !underRoot(abs) {
+			errJSON(w, 403, fmt.Errorf("forbidden"))
+			return
+		}
 		ctype := mime.TypeByExtension(filepath.Ext(abs))
 		if ctype == "" {
 			ctype = "application/octet-stream"
@@ -66,6 +84,13 @@ func handleGET(w http.ResponseWriter, r *http.Request) {
 			errJSON(w, 500, err)
 			return
 		}
+		// Board files are inert data artifacts — never trusted code. `sandbox` (no
+		// allow-scripts) lets the browser still render an uploaded .html/.svg or a PDF for
+		// preview, but with scripting disabled, so a malicious artifact can't run in the
+		// board's origin via the inline iframe OR an "Open ↗" top-level navigation. nosniff
+		// stops the browser from upgrading octet-stream to something executable.
+		w.Header().Set("Content-Security-Policy", "sandbox")
+		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.Header().Set("Content-Type", ctype)
 		w.Write(data)
 	default:
@@ -73,8 +98,17 @@ func handleGET(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// maxBody caps a request body so a single POST (notably base64 uploads, which the handler
+// buffers fully) can't exhaust memory. 64 MiB of body ≈ a 48 MiB upload after base64 inflation.
+const maxBody = 64 << 20
+
 func handlePOST(w http.ResponseWriter, r *http.Request) {
 	defer guard(w)
+	// All mutations run under one lock: the dashboard, the MCP worker, and a second browser
+	// tab all write the same JSON files, and these are unguarded read-modify-write sequences.
+	boardMu.Lock()
+	defer boardMu.Unlock()
+	r.Body = http.MaxBytesReader(w, r.Body, maxBody)
 	var d map[string]any
 	if err := json.NewDecoder(r.Body).Decode(&d); err != nil {
 		errJSON(w, 400, fmt.Errorf("bad json"))
@@ -203,6 +237,13 @@ func orDefault(v, def string) string {
 	return v
 }
 
+// serveAsset writes an embedded static asset (vendored JS) with a long cache lifetime.
+func serveAsset(w http.ResponseWriter, ctype string, body []byte) {
+	w.Header().Set("Content-Type", ctype)
+	w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+	w.Write(body)
+}
+
 // newMux builds the HTTP router (dashboard + API + MCP). Extracted so tests can mount it
 // with httptest without binding a port.
 func newMux() *http.ServeMux {
@@ -231,5 +272,14 @@ func serve(host string, port int) error {
 	if host == "0.0.0.0" {
 		fmt.Printf("  network:    http://<this-machine-ip>:%d/  (no auth — trusted networks only)\n", port)
 	}
-	return http.ListenAndServe(addr, mux)
+	// Explicit timeouts: ReadHeaderTimeout kills slowloris header-drip attacks, IdleTimeout
+	// reaps abandoned keep-alives. Body/write timeouts are left generous so large uploads and
+	// file previews aren't cut off (the body size is bounded by maxBody instead).
+	srv := &http.Server{
+		Addr:              addr,
+		Handler:           mux,
+		ReadHeaderTimeout: 10 * time.Second,
+		IdleTimeout:       120 * time.Second,
+	}
+	return srv.ListenAndServe()
 }

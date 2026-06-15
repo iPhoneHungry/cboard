@@ -323,7 +323,11 @@ func callTool(params json.RawMessage) (any, *rpcErr) {
 	}
 	for _, t := range mcpTools {
 		if t.Name == p.Name {
+			// Same lock the HTTP API takes — the MCP worker and the dashboard mutate the
+			// same files concurrently.
+			boardMu.Lock()
 			res, err := runToolGuarded(t, p.Arguments)
+			boardMu.Unlock()
 			if err != nil {
 				// Tool errors are reported as a successful result with isError:true,
 				// so the model sees the message rather than a transport-level failure.
