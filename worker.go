@@ -311,6 +311,14 @@ func init() {
 			},
 		},
 		mcpTool{
+			Name:        "get_context",
+			Description: "Read the board's global standing context — notes that apply to every card (repo locations, test tooling like 'when I say test, use X', conventions). Load this first, before per-card context.",
+			InputSchema: obj(map[string]any{}),
+			handler: func(args map[string]any) (any, error) {
+				return map[string]any{"context": readBoardContext()}, nil
+			},
+		},
+		mcpTool{
 			Name:        "read_file",
 			Description: "Read a board file by its board-relative path — the `path` on any doc, artifact, asset, or context reference. Returns {path, encoding, content}: utf-8 text, or base64 for binary files. This is how you pull docs/context on demand.",
 			InputSchema: obj(map[string]any{

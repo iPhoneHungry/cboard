@@ -19,6 +19,9 @@ is whatever that server is serving — you don't need a path.
 
 ## The loop
 
+0. **`get_context`** (once, at the start of a run) — the board's standing context: repo
+   locations, test tooling ("when I say *test*, use…"), conventions. It applies to every
+   card and is the broadest context layer; load it before anything card-specific.
 1. **`next_card`** — returns the next card to work, or `{card: null}` when nothing is
    eligible. It already applies the full selection protocol for you: ready order, skips
    paused cards, requires every `depends_on` to be in Done, and for an epic returns

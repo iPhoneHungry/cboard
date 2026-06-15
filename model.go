@@ -599,6 +599,19 @@ func saveBody(lane, cid, ticket, title, body string) error {
 	return os.WriteFile(p, []byte(serializeFM(meta)+"\n"+strings.TrimSpace(body)+"\n"), 0o644)
 }
 
+// Board-level standing context: notes every card shares (repo locations, test tooling,
+// conventions). Stored at context/board.md, surfaced in the dashboard and via the
+// get_context MCP tool, and loaded first (broadest layer) by the worker.
+func readBoardContext() string {
+	return readText(mustJoin("context", "board.md"))
+}
+
+func saveBoardContext(body string) error {
+	d := mustJoin("context")
+	os.MkdirAll(d, 0o755)
+	return os.WriteFile(filepath.Join(d, "board.md"), []byte(body), 0o644)
+}
+
 func saveDoc(lane, cid, name, body string) error {
 	docs := mustJoin(nodeDir(lane, cid, ""), "docs")
 	os.MkdirAll(docs, 0o755)

@@ -139,6 +139,7 @@ textarea{width:100%;min-height:220px;font-family:monospace;font-size:13px;paddin
   <div class="hactions">
     <button class="btn btn-g" id="add-new">➕ New</button>
     <button class="btn btn-g" id="proj">🎯 Projects</button>
+    <button class="btn btn-g" id="ctx">🧭 Context</button>
     <button class="btn btn-g" id="sum">📋 Log</button>
     <button class="btn btn-g" id="about">ℹ️ About</button>
   </div>
@@ -347,6 +348,7 @@ function reopen(){if(!open)return;
   if(open.kind==='new')return openNewCard(open.opts);
   if(open.kind==='chooser')return openCreateChooser(open.cproject);
   if(open.kind==='newproj')return openNewProject();
+  if(open.kind==='context')return openContext();
   if(open.kind==='about')return openAbout();
   if(open.kind==='log')return openLog();
   if(open.kind==='projects')return openProjects();
@@ -356,6 +358,22 @@ function reopen(){if(!open)return;
   if(open.t)return openTicket(open.lane,open.id,open.t);
   return openCard(open.lane,open.id);}
 
+// Board-level standing context: repo locations, test tooling, conventions — shared by every
+// card and handed to agents (via the get_context MCP tool) before any per-card context.
+function openContext(){open={kind:'context'};
+  api('/api/context').then(r=>{const body=r.body||'';
+   showSheet(`<div class="sheet-h"><div class="sheet-t">🧭 Board context</div><button class="x" data-x>×</button></div>
+    <div class="sheet-b">
+     <div style="font-size:12.5px;color:var(--muted);font-weight:600;line-height:1.5;margin-bottom:12px">Standing context shared by every card — where repos live, test tooling (“when I say <em>test</em>, use…”), conventions. Agents load this first, before a card's own details.</div>
+     <div style="margin-bottom:12px"><button class="btn btn-g" id="ctx-edit">✏️ Edit</button></div>
+     <div class="md" id="ctx-md"></div></div>`);
+   document.getElementById('ctx-md').innerHTML=body.trim()?marked.parse(body):'<span class="empty">No board context yet. Add repo locations, test commands, conventions…</span>';
+   document.getElementById('ctx-edit').onclick=()=>{const b=document.querySelector('.sheet-b');
+     b.innerHTML=`<textarea id="ctx-ta" placeholder="# Repos&#10;- main app: ~/code/app (branch: dev)&#10;&#10;# Testing&#10;When I say “test”, run the Playwright harness in ~/code/app/e2e.">${esc(body)}</textarea>
+      <div style="margin-top:12px;display:flex;gap:8px"><button class="btn btn-p" id="ctx-save">💾 Save</button><button class="btn btn-g" id="ctx-cancel">Cancel</button></div>`;
+     document.getElementById('ctx-cancel').onclick=openContext;
+     document.getElementById('ctx-save').onclick=()=>api('/api/context/save','POST',{body:document.getElementById('ctx-ta').value}).then(openContext);};
+  });}
 function openAbout(){open={kind:'about'};
   showSheet(`<div class="sheet-h"><div class="sheet-t">ℹ️ About cboard</div><button class="x" data-x>×</button></div>
    <div class="sheet-b md">
@@ -763,6 +781,7 @@ function editBody(ctx,content,after){
 }
 document.getElementById('sum').onclick=openLog;
 document.getElementById('about').onclick=openAbout;
+document.getElementById('ctx').onclick=openContext;
 document.getElementById('proj').onclick=openProjects;
 document.getElementById('ov').onclick=e=>{if(e.target.id==='ov')close();};
 document.getElementById('add-new').onclick=()=>openCreateChooser();

@@ -44,6 +44,8 @@ func handleGET(w http.ResponseWriter, r *http.Request) {
 		sendJSON(w, 200, summary())
 	case p == "/api/projects":
 		sendJSON(w, 200, listProjects())
+	case p == "/api/context":
+		sendJSON(w, 200, map[string]any{"body": readBoardContext()})
 	case strings.HasPrefix(p, "/files/"):
 		rel := path.Clean(strings.TrimPrefix(p, "/files/"))
 		abs, err := safeJoin(filepath.FromSlash(rel))
@@ -123,6 +125,8 @@ func handlePOST(w http.ResponseWriter, r *http.Request) {
 		err = deleteProject(s("id"))
 	case "/api/project/archive":
 		err = archiveProject(s("id"))
+	case "/api/context/save":
+		err = saveBoardContext(s("body"))
 	case "/api/project/done":
 		done := true
 		if v, ok := d["done"].(bool); ok {
