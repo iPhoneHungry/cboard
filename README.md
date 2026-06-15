@@ -51,9 +51,16 @@ automatically. Tools exposed:
 
 - **Author / track:** `board_snapshot`, `list_cards`, `create_ticket`, `create_epic`,
   `create_project`, `move_card`, `add_review`, `doctor`
+- **Projects:** `list_projects`, `get_project`
 - **Worker support:** `next_card` (deterministic selection — ready order, skip paused,
-  `depends_on`, epic next-ticket), `get_card` (full brief with inlined context), `set_result`,
-  `log_progress`
+  `depends_on`, epic next-ticket), `get_card`, `set_result`, `log_progress`
+- **Pull content:** `read_file(path)` — fetch any doc/asset/context file by its
+  board-relative `path` (utf-8, or base64 for binary)
+
+Responses are lean by design: a card's own body comes inline, but docs, context files,
+artifacts, and assets come back as **references** (`name`, `path`, `ext`, `size`). The caller
+pulls the bodies it actually needs with `read_file` — so a giant spec or a binary doesn't
+bloat every response, and it works against a remote board.
 
 ## The worker: bring your own, or use ours
 

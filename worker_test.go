@@ -107,6 +107,60 @@ func TestGetCardEnriches(t *testing.T) {
 	}
 }
 
+func TestReadBoardFile(t *testing.T) {
+	newTestBoard(t)
+	os.MkdirAll(mustJoin("projects", "p", "docs"), 0o755)
+	os.WriteFile(mustJoin("projects", "p", "docs", "spec.md"), []byte("# Spec\nhi"), 0o644)
+	os.WriteFile(mustJoin("projects", "p", "docs", "blob.bin"), []byte{0x00, 0x01, 0x02, 0xff}, 0o644)
+
+	r, err := readBoardFile("projects/p/docs/spec.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	m := r.(map[string]any)
+	if m["encoding"] != "utf-8" || m["content"] != "# Spec\nhi" {
+		t.Errorf("text read = %#v", m)
+	}
+	r, _ = readBoardFile("projects/p/docs/blob.bin")
+	m = r.(map[string]any)
+	if m["encoding"] != "base64" {
+		t.Errorf("binary should be base64, got %#v", m)
+	}
+	// path traversal is refused
+	if _, err := readBoardFile("../../etc/passwd"); err == nil {
+		t.Error("expected traversal to be refused")
+	}
+	if _, err := readBoardFile("nope.md"); err == nil {
+		t.Error("expected missing file error")
+	}
+}
+
+func TestDocsAreReferencesNotInlined(t *testing.T) {
+	newTestBoard(t)
+	pid, _ := createProject("Launch")
+	os.MkdirAll(mustJoin("projects", pid, "docs"), 0o755)
+	os.WriteFile(mustJoin("projects", pid, "docs", "spec.md"), []byte("# Spec\nbig text"), 0o644)
+	cid := readyCard(t, "Member")
+	setCardProject("ready", cid, "", pid)
+
+	card := getCardDetail("ready", cid)
+	pc := card["project_context"].(map[string]any)
+	docs := pc["docs"].([]map[string]any)
+	if len(docs) != 1 {
+		t.Fatalf("expected 1 project doc, got %d", len(docs))
+	}
+	if _, hasContent := docs[0]["content"]; hasContent {
+		t.Error("project doc should be a reference (no inlined content)")
+	}
+	if docs[0]["path"] != "projects/"+pid+"/docs/spec.md" {
+		t.Errorf("doc path = %v", docs[0]["path"])
+	}
+	// the card body itself stays inline
+	if _, ok := card["content"]; !ok {
+		t.Error("card content should still be present")
+	}
+}
+
 // saveBodyKeepDeps rewrites a card's task.md preserving frontmatter but setting depends_on.
 func saveBodyKeepDeps(t *testing.T, lane, cid string, deps []string) {
 	t.Helper()

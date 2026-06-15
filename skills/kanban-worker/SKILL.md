@@ -20,11 +20,15 @@ is whatever that server is serving — you don't need a path.
    eligible. It already applies the full selection protocol for you: ready order, skips
    paused cards, requires every `depends_on` to be in Done, and for an epic returns
    `next_ticket` (the ticket to execute). **Trust it — do not re-pick or reorder.**
-2. **Read the brief from the result.** `next_card` (and `get_card`) inline everything you
-   need: the card `content`, its `context_files`, `project_context` (goal + shared docs),
-   and for an epic the `tickets` and their detail. If a card came back from review, its
-   `reviews` array is included — **the latest round's `comment` is the work to do now**;
-   earlier rounds tell you what was already tried so you don't regress.
+2. **Read the brief, then pull what you need.** `next_card` (and `get_card`) inline the
+   card's own `content` and its `reviews`, and list everything else as **references** you
+   pull on demand: `context_files`, `project_context` (goal + doc references), epic `docs`,
+   `artifacts`, `assets` — each with a `path`. Call **`read_file(path)`** to fetch the body
+   of any doc/context file you actually need (it returns utf-8 text, or base64 for binary).
+   Don't pull everything reflexively — load broad → narrow (project goal → epic brief →
+   ticket task) and only the docs relevant to this card. If a card came back from review,
+   **the latest round's `comment` is the work to do now**; earlier rounds tell you what was
+   already tried so you don't regress.
 3. **Move to in_progress.** `move_card(id, "in_progress")`, then `log_progress("picked", id)`.
 4. **Execute in a fresh sub-agent** (see *Context isolation*). Hand the sub-agent **only**
    this card's brief. Honor the **work target**:

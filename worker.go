@@ -1,9 +1,13 @@
 package main
 
 import (
+	"bytes"
+	"encoding/base64"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
+	"unicode/utf8"
 )
 
 // Worker-support: the deterministic parts of the worker contract, in code rather than
@@ -115,22 +119,26 @@ func selectNextCard() map[string]any {
 	return map[string]any{"card": nil}
 }
 
-// getCardDetail is readCard enriched with everything a worker needs to act without reading
-// the board's files itself: depends_on/context/kind, the inlined content of referenced
-// global context files, and (if the card has one) the project's goal + shared docs. Epic
-// tickets are enriched the same way. This keeps the worker location-independent — one tool
-// call carries the whole brief, even against a remote board.
+// getCardDetail is readCard plus what a worker needs to act: depends_on/context/kind, the
+// card's project context, and references (not content) for docs, context files, artifacts,
+// and assets. The card's own body (`content`) stays inline — it's needed every time — while
+// everything else is a reference the caller pulls on demand with read_file. That keeps
+// responses lean and works against a remote board.
 func getCardDetail(lane, id string) map[string]any {
 	card := readCard(lane, id)
 	rel := filepath.Join("kanban", lane, id)
 	enrichNode(rel, card)
 	card["lane"] = lane
+	stripDocContent(card["docs"])
 	if pid, _ := card["project"].(string); pid != "" && isDir(mustJoin("projects", pid)) {
-		card["project_context"] = readProject(pid, nil)
+		pc := readProject(pid, nil)
+		stripDocContent(pc["docs"])
+		card["project_context"] = pc
 	}
 	if ts, ok := card["tickets"].([]map[string]any); ok {
 		for _, t := range ts {
 			enrichNode(filepath.Join(rel, "tickets", fmt.Sprint(t["id"])), t)
+			stripDocContent(t["docs"])
 		}
 	}
 	return card
@@ -144,8 +152,18 @@ func enrichNode(rel string, node map[string]any) {
 	node["context_files"] = resolveContext(metaList(meta, "context"))
 }
 
-// resolveContext inlines the content of files referenced in a card's `context:` list
-// (paths under the board's context/ folder).
+// stripDocContent turns inlined docs (the dashboard needs the content; MCP callers don't)
+// into lean references — the caller pulls the body with read_file when it wants it.
+func stripDocContent(docs any) {
+	if arr, ok := docs.([]map[string]any); ok {
+		for _, d := range arr {
+			delete(d, "content")
+		}
+	}
+}
+
+// resolveContext returns references (path + ext + size, no content) for files named in a
+// card's `context:` list, under the board's context/ folder. Pull them with read_file.
 func resolveContext(paths []string) []map[string]any {
 	out := []map[string]any{}
 	for _, p := range paths {
@@ -154,7 +172,14 @@ func resolveContext(paths []string) []map[string]any {
 		if err != nil || !isFile(abs) {
 			continue
 		}
-		out = append(out, map[string]any{"path": filepath.ToSlash(rel), "content": readText(abs)})
+		ref := map[string]any{
+			"path": filepath.ToSlash(rel),
+			"ext":  strings.ToLower(strings.TrimPrefix(filepath.Ext(p), ".")),
+		}
+		if fi, err := os.Stat(abs); err == nil {
+			ref["size"] = fi.Size()
+		}
+		out = append(out, ref)
 	}
 	return out
 }
@@ -236,5 +261,69 @@ func init() {
 				return map[string]any{"ok": true, "id": id, "status": status}, nil
 			},
 		},
+		mcpTool{
+			Name:        "read_file",
+			Description: "Read a board file by its board-relative path — the `path` on any doc, artifact, asset, or context reference. Returns {path, encoding, content}: utf-8 text, or base64 for binary files. This is how you pull docs/context on demand.",
+			InputSchema: obj(map[string]any{
+				"path": strProp("board-relative path (required), e.g. projects/<id>/docs/spec.md"),
+			}, "path"),
+			handler: func(args map[string]any) (any, error) {
+				return readBoardFile(str(args, "path"))
+			},
+		},
+		mcpTool{
+			Name:        "list_projects",
+			Description: "List all projects: id, goal, done flag, member cards, and doc references (read a doc with read_file).",
+			InputSchema: obj(map[string]any{}),
+			handler: func(args map[string]any) (any, error) {
+				ps := listProjects()
+				for _, p := range ps {
+					stripDocContent(p["docs"])
+				}
+				return ps, nil
+			},
+		},
+		mcpTool{
+			Name:        "get_project",
+			Description: "Get one project: goal, member cards, and doc references. Pull a doc's body with read_file using its path.",
+			InputSchema: obj(map[string]any{
+				"id": strProp("project id (required)"),
+			}, "id"),
+			handler: func(args map[string]any) (any, error) {
+				id := str(args, "id")
+				if id == "" {
+					return nil, fmt.Errorf("id is required")
+				}
+				if !isDir(mustJoin("projects", id)) {
+					return nil, fmt.Errorf("project not found: %s", id)
+				}
+				p := readProject(id, nil)
+				stripDocContent(p["docs"])
+				return p, nil
+			},
+		},
 	)
+}
+
+// readBoardFile reads a file under the board root (path is board-relative), returning text
+// or base64-for-binary. Refuses paths that escape the board.
+func readBoardFile(p string) (any, error) {
+	if p == "" {
+		return nil, fmt.Errorf("path is required")
+	}
+	abs, err := safeJoin(filepath.FromSlash(p))
+	if err != nil {
+		return nil, fmt.Errorf("forbidden path")
+	}
+	if !isFile(abs) {
+		return nil, fmt.Errorf("not found: %s", p)
+	}
+	b, err := os.ReadFile(abs)
+	if err != nil {
+		return nil, err
+	}
+	if utf8.Valid(b) && bytes.IndexByte(b, 0) == -1 {
+		return map[string]any{"path": p, "encoding": "utf-8", "content": string(b)}, nil
+	}
+	return map[string]any{"path": p, "encoding": "base64", "content": base64.StdEncoding.EncodeToString(b)}, nil
 }
