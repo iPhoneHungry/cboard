@@ -107,6 +107,45 @@ func TestGetCardEnriches(t *testing.T) {
 	}
 }
 
+func TestEpicTicketsLeanWithPullableSiblings(t *testing.T) {
+	newTestBoard(t)
+	eid, _ := createCard("Epic", "epic", "")
+	moveCard(eid, "planning", "ready")
+	addEpicTicket(eid, "First", "the first ticket body")
+	addEpicTicket(eid, "Second", "the second body")
+	// finish ticket 1 with a result summary — like a done sibling.
+	setResult("ready", eid, "001-first", "done", "built the first thing", nil, []string{"artifacts/a.html"})
+
+	card := getCardDetail("ready", eid)
+	tickets := card["tickets"].([]map[string]any)
+	if len(tickets) != 2 {
+		t.Fatalf("want 2 ticket summaries, got %d", len(tickets))
+	}
+	// overview shows status + one-line result, but NOT the body.
+	if tickets[0]["status"] != "done" || tickets[0]["summary"] != "built the first thing" {
+		t.Errorf("ticket 1 summary = %#v", tickets[0])
+	}
+	if _, hasContent := tickets[0]["content"]; hasContent {
+		t.Error("epic ticket overview should not inline the body")
+	}
+	if tickets[1]["status"] != "todo" {
+		t.Errorf("ticket 2 status = %v, want todo (pending)", tickets[1]["status"])
+	}
+
+	// pull a specific sibling's full info on demand.
+	det, err := ticketDetail("ready", eid, "001-first")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if det["content"] != "the first ticket body" {
+		t.Errorf("pulled ticket body = %v", det["content"])
+	}
+	res := det["result"].(map[string]any)
+	if res["summary"] != "built the first thing" {
+		t.Errorf("pulled result = %#v", res)
+	}
+}
+
 func TestReadBoardFile(t *testing.T) {
 	newTestBoard(t)
 	os.MkdirAll(mustJoin("projects", "p", "docs"), 0o755)

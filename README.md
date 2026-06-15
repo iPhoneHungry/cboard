@@ -62,6 +62,12 @@ artifacts, and assets come back as **references** (`name`, `path`, `ext`, `size`
 pulls the bodies it actually needs with `read_file` — so a giant spec or a binary doesn't
 bloat every response, and it works against a remote board.
 
+An epic's tickets come back as an **overview** (id, title, status, one-line result), so a
+worker on ticket #5 sees that #1–4 are done (and what they produced) and #6–10 are pending —
+then pulls a specific sibling's full detail only when it helps, via `get_card(epicId,
+ticket=<id>)`. `next_card` also returns `next_ticket_detail` (the ticket to work, in full) so
+the common path needs no extra call.
+
 ## The worker: bring your own, or use ours
 
 The board doesn't care who moves the cards — you can drive the MCP tools however you like. If

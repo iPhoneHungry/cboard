@@ -112,7 +112,11 @@ func selectNextCard() map[string]any {
 			if nt == "" {
 				continue
 			}
-			return map[string]any{"card": getCardDetail(ready, cid), "lane": ready, "next_ticket": nt}
+			res := map[string]any{"card": getCardDetail(ready, cid), "lane": ready, "next_ticket": nt}
+			if d, err := ticketDetail(ready, cid, nt); err == nil {
+				res["next_ticket_detail"] = d // the ticket to work, full — no extra call needed
+			}
+			return res
 		}
 		return map[string]any{"card": getCardDetail(ready, cid), "lane": ready}
 	}
@@ -136,12 +140,53 @@ func getCardDetail(lane, id string) map[string]any {
 		card["project_context"] = pc
 	}
 	if ts, ok := card["tickets"].([]map[string]any); ok {
-		for _, t := range ts {
-			enrichNode(filepath.Join(rel, "tickets", fmt.Sprint(t["id"])), t)
-			stripDocContent(t["docs"])
-		}
+		card["tickets"] = leanTickets(lane, id, ts)
 	}
 	return card
+}
+
+// leanTickets projects an epic's full ticket nodes down to overview summaries: id, title,
+// status, paused, and the one-line result summary. Working ticket #5, you see #1–4 done
+// (with what they produced) and #6–10 pending — enough trajectory without inlining every
+// sibling's body. Pull a specific sibling's full info with get_card(id, ticket=<tid>).
+func leanTickets(epicLane, epicID string, full []map[string]any) []map[string]any {
+	out := []map[string]any{}
+	for _, t := range full {
+		tid := fmt.Sprint(t["id"])
+		out = append(out, map[string]any{
+			"id": tid, "title": t["title"], "type": "ticket",
+			"status": t["status"], "paused": t["paused"],
+			"summary": resultSummary(filepath.Join("kanban", epicLane, epicID, "tickets", tid)),
+		})
+	}
+	return out
+}
+
+func resultSummary(relDir string) string {
+	if r, ok := readResult(relDir)["summary"].(string); ok {
+		return r
+	}
+	return ""
+}
+
+func readResult(relDir string) map[string]any {
+	if r, ok := readJSON(mustJoin(relDir, "result.json")).(map[string]any); ok {
+		return r
+	}
+	return map[string]any{}
+}
+
+// ticketDetail is the full brief for one epic sub-ticket (for pulling a sibling's info):
+// body, status, result, depends_on, reviews, log, and reference lists for artifacts/assets.
+func ticketDetail(epicLane, epicID, tid string) (map[string]any, error) {
+	rel := filepath.Join("kanban", epicLane, epicID, "tickets", tid)
+	if !isDir(mustJoin(rel)) {
+		return nil, fmt.Errorf("ticket not found: %s/%s", epicID, tid)
+	}
+	node := readNode(rel)
+	enrichNode(rel, node)
+	node["result"] = readResult(rel)
+	return node, nil
 }
 
 func enrichNode(rel string, node map[string]any) {
@@ -221,15 +266,19 @@ func init() {
 		},
 		mcpTool{
 			Name:        "get_card",
-			Description: "Full detail for one card (auto-finds its lane): body, status, artifacts, reviews, depends_on, context, kind, and — for an epic — its tickets and their detail.",
+			Description: "Full detail for one card (auto-finds its lane): body (inline), status, depends_on, context/artifacts/assets as references. For an epic, its tickets come back as overview summaries (id, title, status, one-line result). To pull a specific epic sub-ticket's full detail (e.g. an already-done sibling's body + result), pass its ticket id.",
 			InputSchema: obj(map[string]any{
-				"id": strProp("card id (required)"),
+				"id":     strProp("card id (required)"),
+				"ticket": strProp("an epic sub-ticket id — returns that ticket's full detail instead of the epic"),
 			}, "id"),
 			handler: func(args map[string]any) (any, error) {
 				id := str(args, "id")
 				lane := findLane(id)
 				if lane == "" {
 					return nil, fmt.Errorf("card not found: %s", id)
+				}
+				if tid := str(args, "ticket"); tid != "" {
+					return ticketDetail(lane, id, tid)
 				}
 				return getCardDetail(lane, id), nil
 			},

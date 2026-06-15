@@ -41,8 +41,13 @@ is whatever that server is serving — you don't need a path.
 6. **Move to the terminal lane.**
    - Ticket → `move_card(id, "review")` if done/needs_review, or `"blocked"` if blocked.
    - Epic → process each ticket (step 4) one at a time, **each in its own fresh sub-agent**,
-     calling `set_result(id, ..., ticket=<tid>)` per ticket. Move the epic to `"review"`
-     only when **all** tickets are done; to `"blocked"` if any ticket is blocked.
+     calling `set_result(id, ..., ticket=<tid>)` per ticket. The epic detail lists every
+     ticket as an **overview** (id, title, status, one-line result), so when you start
+     ticket #5 you can see #1–4 are done (and what they produced) and #6–10 are pending.
+     That trajectory is useful context — and if a done sibling's full detail would help the
+     current ticket, pull it on purpose with `get_card(epicId, ticket=<siblingId>)` and feed
+     the relevant bits to the sub-agent. Move the epic to `"review"` only when **all**
+     tickets are done; to `"blocked"` if any ticket is blocked.
    **Never move a card to `done` yourself** — Test & Review is a human gate. A person
    approves `review → done` (or sends it back with a comment via `add_review`).
 7. **Repeat** from step 1.
@@ -60,12 +65,15 @@ is whatever that server is serving — you don't need a path.
 
 ## Context isolation (one card = one clean context)
 
-Each card is worked in a **fresh sub-agent** seeded with *only* that card's brief, so it can
-never inherit reasoning or file contents from a card you handled earlier — that
-cross-contamination is what makes a worker conflate unrelated tasks. The sub-agent returns
-**only** the structured result; you (the outer worker) stay thin — select, delegate, record,
-move on. Epic tickets each get their own sub-agent; shared epic/project material is
-re-supplied to each (it's shared context, not memory of sibling tickets' work). If you ever
+Each card is worked in a **fresh sub-agent** seeded with the card's brief, so it can never
+*accidentally* inherit reasoning or half-finished state from a card you happened to handle
+earlier — that uncontrolled bleed is what makes a worker conflate unrelated tasks. The
+distinction is **curated vs. accidental**: deliberately pulling a done sibling's overview or
+its full detail (`get_card(epicId, ticket=…)`) because it genuinely informs the current
+ticket is good context; silently carrying over the previous card's working memory is not.
+The sub-agent returns **only** the structured result; you (the outer worker) stay thin —
+select, delegate, record, move on. Epic tickets each get their own sub-agent; shared
+epic/project material and any sibling info you chose to pull are re-supplied explicitly. If you ever
 execute inline instead, deliberately discard everything from the previous card first.
 
 ## Hard rules
