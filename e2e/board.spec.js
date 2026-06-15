@@ -75,6 +75,25 @@ test('archive keeps it off the board; delete removes it', async ({ page }) => {
   await expect(page.locator('.card', { hasText: 'Delete me' })).toHaveCount(0);
 });
 
+test('drag to reorder within a lane (top = next)', async ({ page }) => {
+  await page.goto('/');
+  for (const n of ['R1', 'R2', 'R3']) {
+    await page.click('#add-new');
+    await page.click('[data-new="ticket"]');
+    await page.fill('#nt-title', n);
+    await page.click('#nt-go');
+    await close(page);
+  }
+  // createCard prepends, so planning is top→bottom R3, R2, R1; drag R1 up onto R3
+  const r1Id = await page.locator('.card', { hasText: 'R1' }).getAttribute('data-id');
+  await page.locator('.card', { hasText: 'R1' })
+    .dragTo(page.locator('.card', { hasText: 'R3' }), { targetPosition: { x: 20, y: 2 } });
+  // R1 is now the top card of planning
+  await expect
+    .poll(async () => page.locator('.lane-b[data-lane="planning"] .card').first().getAttribute('data-id'))
+    .toBe(r1Id);
+});
+
 test('planning lane + opens the chooser', async ({ page }) => {
   await page.goto('/');
   await page.locator('[data-newlane]').click();
