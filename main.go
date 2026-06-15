@@ -413,6 +413,9 @@ func cmdConfig(args []string) error {
 // ── authoring helpers (port of board_cli.py) ──
 
 func findLane(cardID string) string {
+	if cardID == "" {
+		return ""
+	}
 	kanban := mustJoin("kanban")
 	if !isDir(kanban) {
 		return ""

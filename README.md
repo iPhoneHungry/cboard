@@ -47,8 +47,28 @@ claude mcp add --transport http cboard http://localhost:8787/mcp
 ```
 
 …or drop the included [`.mcp.json`](.mcp.json) into a project so Claude offers to connect
-automatically. Tools exposed: `board_snapshot`, `list_cards`, `create_ticket`, `create_epic`,
-`create_project`, `move_card`, `add_review`, `log_progress`, `doctor`.
+automatically. Tools exposed:
+
+- **Author / track:** `board_snapshot`, `list_cards`, `create_ticket`, `create_epic`,
+  `create_project`, `move_card`, `add_review`, `doctor`
+- **Worker support:** `next_card` (deterministic selection — ready order, skip paused,
+  `depends_on`, epic next-ticket), `get_card` (full brief with inlined context), `set_result`,
+  `log_progress`
+
+## The worker: bring your own, or use ours
+
+The board doesn't care who moves the cards — you can drive the MCP tools however you like. If
+you want a disciplined task runner, use the bundled **`kanban-worker` skill**
+([`skills/kanban-worker/SKILL.md`](skills/kanban-worker/SKILL.md)): it picks Ready cards in
+strict order, runs **each card in its own fresh sub-agent** (context isolation), records a
+result, and parks finished work in **Test & Review** — never auto-completing to Done, never
+inventing or reordering tasks.
+
+The split is deliberate: the **deterministic mechanics** (selection, ordering, logging,
+`order.json` consistency) live in the binary as MCP tools, so they can't be gotten wrong; the
+**judgment and isolation** (which sub-agent runs what, repo-vs-artifact, the review gate) live
+in the skill, because only an agent can do those. Any MCP client can write its own worker loop
+against the same tools.
 
 ## Commands
 
