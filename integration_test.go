@@ -45,7 +45,10 @@ func (c *client) api(path string, body map[string]any) map[string]any {
 
 func (c *client) board() map[string]any {
 	c.t.Helper()
-	resp, _ := http.Get(c.srv.URL + "/api/board")
+	resp, err := http.Get(c.srv.URL + "/api/board")
+	if err != nil {
+		c.t.Fatalf("GET /api/board: %v", err)
+	}
 	defer resp.Body.Close()
 	var out map[string]any
 	json.NewDecoder(resp.Body).Decode(&out)
@@ -162,7 +165,10 @@ func TestMCPHandshakeOverHTTP(t *testing.T) {
 		"params": map[string]any{"protocolVersion": "2025-06-18"}})
 	r, _ := http.NewRequest("POST", c.srv.URL+"/mcp", bytes.NewReader(body))
 	r.Header.Set("Accept", "application/json, text/event-stream")
-	resp, _ := http.DefaultClient.Do(r)
+	resp, err := http.DefaultClient.Do(r)
+	if err != nil {
+		t.Fatalf("initialize: %v", err)
+	}
 	defer resp.Body.Close()
 	var env map[string]any
 	json.NewDecoder(resp.Body).Decode(&env)
@@ -170,7 +176,10 @@ func TestMCPHandshakeOverHTTP(t *testing.T) {
 		t.Fatalf("initialize wrong: %#v", env)
 	}
 	// GET /mcp is 405 (no SSE stream)
-	g, _ := http.Get(c.srv.URL + "/mcp")
+	g, err := http.Get(c.srv.URL + "/mcp")
+	if err != nil {
+		t.Fatalf("GET /mcp: %v", err)
+	}
 	g.Body.Close()
 	if g.StatusCode != 405 {
 		t.Errorf("GET /mcp = %d, want 405", g.StatusCode)
@@ -179,7 +188,10 @@ func TestMCPHandshakeOverHTTP(t *testing.T) {
 
 func TestDashboardServesPage(t *testing.T) {
 	c := newClient(t)
-	resp, _ := http.Get(c.srv.URL + "/")
+	resp, err := http.Get(c.srv.URL + "/")
+	if err != nil {
+		t.Fatalf("GET /: %v", err)
+	}
 	defer resp.Body.Close()
 	b, _ := io.ReadAll(resp.Body)
 	if !bytes.Contains(b, []byte("<title>cboard</title>")) {
