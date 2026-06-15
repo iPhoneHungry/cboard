@@ -3,5 +3,10 @@
 /cboard.exe
 # cross-compiled artifacts
 /dist/
-# a local board folder, if someone runs `cboard init ./cboard` here
+# a local board folder, if someone runs `cboard serve ./cboard` here
 /board/
+# e2e (Playwright) artifacts
+/e2e/node_modules/
+/e2e/.home/
+/e2e/test-results/
+/e2e/playwright-report/

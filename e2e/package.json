@@ -1,0 +1,12 @@
+{
+  "name": "cboard-e2e",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Playwright frontend e2e for the cboard dashboard",
+  "scripts": {
+    "test": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.61.0"
+  }
+}
