@@ -1,11 +1,17 @@
 # cboard
 
-**A kanban board that lives in a folder.**
+**Download it, run it, and get out of the terminal — without unplugging your local AI.**
 
-No database, no login, no cloud — just files on your machine. One small binary gives you
-three ways into the *same* board: a dashboard in your browser, an MCP endpoint your AI agents
-can drive, and a CLI for scripts. Made for the world where you and a coding agent share a
-to-do list.
+cboard is a kanban board that lives in a folder on your machine. One small binary gives you a
+board in your browser *and* an endpoint your local LLM plugs into — so your agent keeps
+breaking work down and grinding through tickets while you plan, drag, and review in a clean UI
+instead of squinting at terminal scrollback.
+
+It's for people who want to break work down *past* Jira and "the sprint" — into real tickets,
+epics, and projects — without juggling a stack of SaaS tools to get there.
+
+And it's all local: no database, no account, no cloud, nothing leaving your machine. A task
+system you can actually run at work without making the security team lose their minds.
 
 [![release](https://img.shields.io/github/v/release/iPhoneHungry/cboard)](https://github.com/iPhoneHungry/cboard/releases/latest)
 
