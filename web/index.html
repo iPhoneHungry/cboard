@@ -137,8 +137,7 @@ textarea{width:100%;min-height:220px;font-family:monospace;font-size:13px;paddin
 <header>
   <div class="wordmark">📋 cboard</div>
   <div class="hactions">
-    <button class="btn btn-g" id="add-t">+ Ticket</button>
-    <button class="btn btn-g" id="add-e">+ Epic</button>
+    <button class="btn btn-g" id="add-new">➕ New</button>
     <button class="btn btn-g" id="proj">🎯 Projects</button>
     <button class="btn btn-g" id="sum">📋 Log</button>
     <button class="btn btn-g" id="about">ℹ️ About</button>
@@ -231,10 +230,12 @@ function render(){
   el.innerHTML=BOARD.lanes.map(l=>{
     const cs=BOARD.cards[l.id]||[];
     const bar=bulkBar(l.id,cs);
+    const plus=l.id==='planning'?`<button class="btn btn-g bulkbtn" data-newlane="1" style="width:100%">➕ New card</button>`:'';
     return `<div class="lane"><div class="lane-h" style="--lc:${lcolor(l)}">
       <span class="lane-n">${esc(l.name)}</span><span class="lane-c">${cs.length}</span></div>
-      <div class="lane-b" data-lane="${esc(l.id)}">${bar}${cs.map(c=>cardHtml(c,l.id)).join('')||'<div class="empty" style="padding:6px">—</div>'}</div></div>`;
+      <div class="lane-b" data-lane="${esc(l.id)}">${bar}${plus}${cs.map(c=>cardHtml(c,l.id)).join('')||'<div class="empty" style="padding:6px">—</div>'}</div></div>`;
   }).join('');
+  el.querySelectorAll('[data-newlane]').forEach(b=>b.onclick=e=>{e.stopPropagation();openCreateChooser();});
   el.querySelectorAll('.card').forEach(x=>{
     const lane=x.dataset.lane,id=x.dataset.id;
     if(lane===bulkLane){
@@ -343,7 +344,9 @@ function showSheet(h){document.getElementById('sheet').innerHTML=h;document.getE
   document.getElementById('sheet').querySelectorAll('[data-x]').forEach(b=>b.onclick=close);}
 function close(){document.getElementById('ov').classList.add('hidden');open=null;}
 function reopen(){if(!open)return;
-  if(open.kind==='new')return openNewCard(open.ntype,open.nproject);
+  if(open.kind==='new')return openNewCard(open.opts);
+  if(open.kind==='chooser')return openCreateChooser(open.cproject);
+  if(open.kind==='newproj')return openNewProject();
   if(open.kind==='about')return openAbout();
   if(open.kind==='log')return openLog();
   if(open.kind==='projects')return openProjects();
@@ -451,8 +454,8 @@ function openProject(id){api('/api/projects').then(ps=>{PROJECTS=ps;const p=ps.f
   document.getElementById('done').onclick=()=>api('/api/project/done','POST',{id,done:!p.done}).then(()=>openProject(id));
   document.getElementById('archproj').onclick=()=>confirmBox('Archive project?','“'+projTitle(p)+'” will be hidden and kept in the board’s archive/ folder. Its epics/tickets are NOT touched — they just lose the project tag.','Archive').then(ok=>{if(ok)api('/api/project/archive','POST',{id}).then(load).then(openProjects);});
   document.getElementById('delproj').onclick=()=>confirmBox('Delete project?','“'+projTitle(p)+'” will be permanently removed from disk. This cannot be undone. Its epics/tickets are NOT deleted — they just lose the project tag.','Delete forever').then(ok=>{if(ok)api('/api/project/delete','POST',{id}).then(load).then(openProjects);});
-  document.getElementById('addt').onclick=()=>openNewCard('ticket',id);
-  document.getElementById('adde').onclick=()=>openNewCard('epic',id);
+  document.getElementById('addt').onclick=()=>openNewCard({type:'ticket',project:id});
+  document.getElementById('adde').onclick=()=>openNewCard({type:'epic',project:id});
   document.getElementById('edit').onclick=()=>{const b=document.querySelector('.sheet-b');
     b.innerHTML=`<textarea id="ta">${esc(p.goal||'')}</textarea><div style="margin-top:12px;display:flex;gap:8px"><button class="btn btn-p" id="save">💾 Save</button><button class="btn btn-g" id="cancel">Cancel</button></div>`;
     document.getElementById('cancel').onclick=()=>openProject(id);
@@ -564,27 +567,69 @@ function moveBar(lane,id){
 
 // One modal to create a card: title at the top, description below. On Create it makes the
 // card and drops you straight on its view, so you can keep editing / attach / move it.
-function openNewCard(type,project){
-  open={kind:'new',ntype:type,nproject:project||''};
-  const label=type==='epic'?'epic':'ticket';
-  const cap=label.charAt(0).toUpperCase()+label.slice(1);
-  showSheet(`<div class="sheet-h"><div class="sheet-t">${type==='epic'?'🗂':'📋'} New ${label}</div><button class="x" data-x>×</button></div>
+// opts: {type:'ticket'|'epic', project?, epic?, epicLane?}. With epic set, creates a
+// sub-ticket of that epic and returns to the epic view; otherwise a top-level card in planning.
+function openNewCard(opts){
+  opts=opts||{}; const type=opts.epic?'ticket':(opts.type||'ticket');
+  open={kind:'new',opts};
+  const where=opts.epic?'ticket in epic':(type==='epic'?'epic':'ticket');
+  const cap=(type==='epic'?'Epic':'Ticket');
+  showSheet(`<div class="sheet-h"><div class="sheet-t">${type==='epic'?'🗂':'📋'} New ${where}</div><button class="x" data-x>×</button></div>
    <div class="sheet-b">
     <input id="nt-title" class="msel" type="text" placeholder="${cap} title" autocomplete="off" style="margin-bottom:14px">
     <div class="label">Description</div>
     <textarea id="nt-body" placeholder="What needs doing? Markdown welcome — optional."></textarea>
-    <div style="margin-top:12px;display:flex;gap:8px"><button class="btn btn-p" id="nt-go">Create ${label}</button><button class="btn btn-g" id="nt-cancel">Cancel</button></div>
+    <div style="margin-top:12px;display:flex;gap:8px"><button class="btn btn-p" id="nt-go">Create ${type==='epic'?'epic':'ticket'}</button><button class="btn btn-g" id="nt-cancel">Cancel</button></div>
    </div>`);
   const ti=document.getElementById('nt-title');ti.focus();
   document.getElementById('nt-cancel').onclick=close;
   const submit=()=>{const title=ti.value.trim();if(!title){ti.focus();return;}
     const body=document.getElementById('nt-body').value;
-    api('/api/create','POST',{type,title,project:project||undefined}).then(r=>{
+    if(opts.epic){
+      api('/api/create','POST',{type:'ticket',title,epic:opts.epic,body}).then(()=>{open=null;load().then(()=>openEpic(opts.epicLane,opts.epic));});
+      return;
+    }
+    api('/api/create','POST',{type,title,project:opts.project||undefined}).then(r=>{
       const id=r.id;
       const go=()=>{open=null;load().then(()=>type==='epic'?openEpic('planning',id):openCard('planning',id));};
       body.trim()?api('/api/save','POST',{lane:'planning',id,body}).then(go):go();
     });};
   document.getElementById('nt-go').onclick=submit;
+  ti.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();submit();}};
+}
+
+// The "what do you want to start?" chooser, with help text for each kind.
+function openCreateChooser(project){
+  open={kind:'chooser',cproject:project||''};
+  const opt=(emoji,name,t,help)=>`<div class="trow" data-new="${t}" style="flex-direction:column;align-items:flex-start;gap:3px;padding:12px 14px">
+    <div class="tt">${emoji} ${name}</div><div style="font-size:12.5px;color:var(--muted);font-weight:600;line-height:1.4">${help}</div></div>`;
+  showSheet(`<div class="sheet-h"><div class="sheet-t">➕ What do you want to start?</div><button class="x" data-x>×</button></div>
+   <div class="sheet-b">
+    ${opt('📋','Ticket','ticket','A single commit of work that can be tested and reviewed on its own.')}
+    ${opt('🗂','Epic','epic','A group of tickets worked one after another, then tested together — like a feature branch.')}
+    ${opt('🎯','Project','project','A group of epics that share some context. You can add the epics later.')}
+   </div>`);
+  document.querySelectorAll('#sheet [data-new]').forEach(r=>r.onclick=()=>{const t=r.dataset.new;
+    if(t==='project')openNewProject(); else openNewCard({type:t,project:project});});
+}
+
+function openNewProject(){
+  open={kind:'newproj'};
+  showSheet(`<div class="sheet-h"><div class="sheet-t">🎯 New project</div><button class="x" data-x>×</button></div>
+   <div class="sheet-b">
+    <input id="np-title" class="msel" type="text" placeholder="Project name" autocomplete="off" style="margin-bottom:14px">
+    <div class="label">Goal / what it's for</div>
+    <textarea id="np-body" placeholder="The shared goal and context for its epics — optional, add later."></textarea>
+    <div style="margin-top:12px;display:flex;gap:8px"><button class="btn btn-p" id="np-go">Create project</button><button class="btn btn-g" id="np-cancel">Cancel</button></div>
+   </div>`);
+  const ti=document.getElementById('np-title');ti.focus();
+  document.getElementById('np-cancel').onclick=close;
+  const submit=()=>{const name=ti.value.trim();if(!name){ti.focus();return;}
+    const body=document.getElementById('np-body').value;
+    api('/api/project/create','POST',{name}).then(r=>{const id=r.id;
+      const go=()=>{open=null;load().then(()=>openProject(id));};
+      body.trim()?api('/api/project/save','POST',{id,body}).then(go):go();});};
+  document.getElementById('np-go').onclick=submit;
   ti.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();submit();}};
 }
 
@@ -628,7 +673,8 @@ function openEpic(lane,id){
     <div class="label">Shared docs</div>${docsHtml(c)}
     <div style="margin-top:8px"><button class="btn btn-g" id="adddoc">+ Doc</button></div>
     <div class="label">Tickets (${p.total})</div>
-    ${(c.tickets||[]).map(t=>`<div class="trow" data-t="${esc(t.id)}"><span class="tt">${esc(t.title)}</span>${t.paused?'<span class="tag tag-pause">⏸</span>':''}<span class="st st-${esc(t.status)}">${esc(t.status)}</span></div>`).join('')||'<div class="empty">No tickets.</div>'}
+    ${(c.tickets||[]).map(t=>`<div class="trow" data-t="${esc(t.id)}"><span class="tt">${esc(t.title)}</span>${t.paused?'<span class="tag tag-pause">⏸</span>':''}<span class="st st-${esc(t.status)}">${esc(t.status)}</span></div>`).join('')||'<div class="empty">No tickets yet — an epic is a sequence of tickets. Add the first one. →</div>'}
+    <div style="margin-top:8px"><button class="btn btn-p" id="addticket">+ Ticket</button></div>
     ${reviewSection(c,{lane,id})}
     <div class="label">Epic log</div><div id="log"></div>
    </div>`);
@@ -643,6 +689,7 @@ function openEpic(lane,id){
   document.getElementById('arch').onclick=()=>confirmBox('Archive epic?','“'+(c.title||id)+'” and its '+p.total+' ticket(s) will be hidden from the board but kept in the board’s archive/ folder.','Archive').then(ok=>{if(ok)api('/api/archive','POST',{lane,id}).then(()=>{close();load();});});
   document.getElementById('del').onclick=()=>confirmBox('Delete epic?','“'+(c.title||id)+'” and its '+p.total+' ticket(s) will be permanently removed from disk. This cannot be undone.','Delete forever').then(ok=>{if(ok)api('/api/delete','POST',{lane,id}).then(()=>{close();load();});});
   document.querySelectorAll('[data-t]').forEach(r=>r.onclick=()=>openTicket(lane,id,r.dataset.t));
+  document.getElementById('addticket').onclick=()=>openNewCard({type:'ticket',epic:id,epicLane:lane});
   document.querySelectorAll('[data-doc]').forEach(r=>r.onclick=()=>openDoc(lane,id,r.dataset.doc));
   document.getElementById('adddoc').onclick=()=>askText('New shared doc','Doc name (e.g. spec)').then(n=>{
     if(n&&n.trim())api('/api/adddoc','POST',{lane,id,name:n.trim()}).then(()=>load());});
@@ -704,8 +751,7 @@ document.getElementById('sum').onclick=openLog;
 document.getElementById('about').onclick=openAbout;
 document.getElementById('proj').onclick=openProjects;
 document.getElementById('ov').onclick=e=>{if(e.target.id==='ov')close();};
-document.getElementById('add-t').onclick=()=>openNewCard('ticket');
-document.getElementById('add-e').onclick=()=>openNewCard('epic');
+document.getElementById('add-new').onclick=()=>openCreateChooser();
 load();poll=setInterval(()=>{if(!dragId&&!bulkLane&&document.getElementById('ov').classList.contains('hidden'))load();},4000);
 </script>
 </body></html>

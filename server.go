@@ -141,6 +141,15 @@ func handlePOST(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	case "/api/create":
+		if epic := s("epic"); epic != "" { // add a sub-ticket to an epic
+			var lane, tid string
+			lane, tid, err = addEpicTicket(epic, s("title"), s("body"))
+			if err == nil {
+				sendJSON(w, 200, map[string]any{"ok": true, "epic": epic, "lane": lane, "ticket": tid})
+				return
+			}
+			break
+		}
 		var id string
 		id, err = createCard(s("title"), orDefault(s("type"), "ticket"), s("project"))
 		if err == nil {
