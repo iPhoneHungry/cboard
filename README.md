@@ -22,8 +22,10 @@ and run `cboard`.
 
 That's the whole setup. `cboard` with no arguments opens the dashboard at
 **http://localhost:8787** and, if you don't have a board yet, creates one at `~/.cboard/board`
-and remembers it. Open the page and start dragging cards. Want the board somewhere you can
-see it? `cboard init ~/my-board` once.
+and remembers it. Open the page and start dragging cards.
+
+Want the board somewhere you can see it? Point at a folder for one run — `cboard serve
+~/my-board` — or make it your default for good with `cboard config set ~/my-board`.
 
 ## Three doors, one board
 
@@ -93,9 +95,11 @@ trusted network (e.g. Tailscale), add `--host 0.0.0.0`.
 
 ## CLI, briefly
 
-`init` · `serve` · `ticket` · `epic` · `project` · `move` · `list` · `log` · `doctor` ·
-`config` — run `cboard` with no args to just serve, or `cboard <cmd> -h`. Most commands take
-`--root <board>`; without it they use your active board.
+`serve` · `ticket` · `epic` · `project` · `move` · `list` · `log` · `doctor` · `config` —
+run `cboard` with no args to just serve, or `cboard <cmd> -h`. Most commands take
+`--root <board>`; without it they use your active board. On startup the board self-heals:
+cards you (or anything) drop into a lane by hand get folded into its `order.json`, and a
+loose `.md` is adopted into a proper card — `cboard doctor` handles deeper repairs.
 
 ## Hacking on it
 

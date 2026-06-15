@@ -16,8 +16,7 @@ const version = "0.3.0"
 const usage = `cboard — local filesystem kanban (dashboard + MCP + worker CLI), one binary.
 
 Usage:
-  cboard init [board]                      seed a board folder and make it active
-  cboard serve [board] [--port N] [--host H]   run the dashboard (default localhost:8787)
+  cboard [serve] [board] [--port N] [--host H]  run the dashboard + MCP (default localhost:8787)
   cboard ticket  "Title" [--project P] [--epic E] [--body T]
   cboard epic    "Title" [--project P] [--body T]
   cboard project "Name"  [--body T]
@@ -28,9 +27,11 @@ Usage:
   cboard config get | set <path>           show / set the active board
   cboard version                           print the version
 
-Run with no arguments to just serve. The dashboard also exposes MCP at /mcp, so agents
-and the browser share one process. Without --root, commands use the active board (set by
-cboard init / the first serve); a brand-new user gets one auto-created at ~/.cboard/board.`
+Run with no arguments to just serve. The board defaults to ~/.cboard/board (created on
+first run and remembered); override it for one run with a path or --root, or change the
+default for good with 'cboard config set <path>'. The dashboard also exposes MCP at /mcp,
+so agents and the browser share one process. On startup the board is self-healed: cards
+added to a lane by hand are appended to its order.json.`
 
 func main() {
 	// No args → serve (the common case): make the happy path a single word.
@@ -44,8 +45,6 @@ func main() {
 	cmd, args := os.Args[1], os.Args[2:]
 	var err error
 	switch cmd {
-	case "init":
-		err = cmdInit(args)
 	case "serve":
 		err = cmdServe(args)
 	case "version", "--version", "-v":
@@ -161,37 +160,6 @@ func seedBoard(dir string) error {
 	return nil
 }
 
-func cmdInit(args []string) error {
-	var rootFlag string
-	pos, err := parseFlags(args, map[string]*string{"root": &rootFlag}, nil)
-	if err != nil {
-		return err
-	}
-	board := ""
-	if len(pos) > 0 {
-		board = pos[0]
-	} else {
-		board = rootFlag
-	}
-	if board == "" {
-		cwd, _ := os.Getwd()
-		board = filepath.Join(cwd, "cboard")
-	}
-	abs, err := filepath.Abs(expandUser(board))
-	if err != nil {
-		return err
-	}
-	if err := seedBoard(abs); err != nil {
-		return err
-	}
-	saved, err := configSetBoard(abs)
-	if err != nil {
-		return err
-	}
-	fmt.Printf("Active board set to %s\n", saved)
-	return nil
-}
-
 func cmdServe(args []string) error {
 	host := "127.0.0.1"
 	port := "8787"
@@ -232,6 +200,8 @@ func cmdServe(args []string) error {
 			fmt.Printf("Active board set to %s\n", saved)
 		}
 	}
+	// Self-heal: fold any hand-added cards into their order.json, report what's out of place.
+	startupReconcile().print()
 	p, err := strconv.Atoi(port)
 	if err != nil {
 		return fmt.Errorf("bad --port: %s", port)
@@ -239,8 +209,9 @@ func cmdServe(args []string) error {
 	return serve(host, p)
 }
 
-// defaultBoardDir is where a brand-new user's board lives when they never ran init:
-// ~/.cboard/board (tidy, hidden, home-dir — works from any directory).
+// defaultBoardDir is where a brand-new user's board lives: ~/.cboard/board (tidy, hidden,
+// home-dir — works from any directory). Override per run with a path/--root, or persistently
+// with `cboard config set`.
 func defaultBoardDir() string {
 	home, err := os.UserHomeDir()
 	if err != nil || home == "" {
