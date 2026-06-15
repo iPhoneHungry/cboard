@@ -141,6 +141,7 @@ textarea{width:100%;min-height:220px;font-family:monospace;font-size:13px;paddin
     <button class="btn btn-g" id="add-e">+ Epic</button>
     <button class="btn btn-g" id="proj">🎯 Projects</button>
     <button class="btn btn-g" id="sum">📋 Log</button>
+    <button class="btn btn-g" id="about">ℹ️ About</button>
   </div>
 </header>
 <div id="lanenav" class="lanenav"></div>
@@ -336,6 +337,7 @@ function showSheet(h){document.getElementById('sheet').innerHTML=h;document.getE
   document.getElementById('sheet').querySelectorAll('[data-x]').forEach(b=>b.onclick=close);}
 function close(){document.getElementById('ov').classList.add('hidden');open=null;}
 function reopen(){if(!open)return;
+  if(open.kind==='about')return openAbout();
   if(open.kind==='log')return openLog();
   if(open.kind==='projects')return openProjects();
   if(open.kind==='projectdoc')return openProjectDoc(open.pid,open.doc);
@@ -344,6 +346,44 @@ function reopen(){if(!open)return;
   if(open.t)return openTicket(open.lane,open.id,open.t);
   return openCard(open.lane,open.id);}
 
+function openAbout(){open={kind:'about'};
+  showSheet(`<div class="sheet-h"><div class="sheet-t">ℹ️ About cboard</div><button class="x" data-x>×</button></div>
+   <div class="sheet-b md">
+    <p><strong>The board is the filesystem.</strong> Every card is a folder; every change is a
+    file you can read, diff, back up, and put in git. No database, no account, no cloud — your
+    board is plain files on your machine.</p>
+    <p>One small binary opens <strong>three doors onto the same board</strong>:</p>
+    <ul>
+      <li><strong>This dashboard</strong> — for you, to see and move work.</li>
+      <li><strong>MCP</strong> — so Claude and other agents can add, track, update, and
+      <em>work</em> cards, from anywhere.</li>
+      <li><strong>CLI</strong> — for scripts and automation.</li>
+    </ul>
+    <p>It's built so an AI worker can actually do the work: each card carries its own brief,
+    context, logs, and review history right next to it.</p>
+
+    <div class="label">Why Project → Epic → Ticket</div>
+    <p>Three levels, read top-down as <strong>why → what → do</strong>:</p>
+    <ul>
+      <li><strong>🎯 Project</strong> — the <em>why</em>. The goal, success criteria, and shared
+      docs. Everything under it inherits this as context.</li>
+      <li><strong>🗂 Epic</strong> — the <em>what</em>. A feature too big for one sitting: a
+      shared brief + docs and an ordered set of tickets, with progress tracked (done / total).</li>
+      <li><strong>📋 Ticket</strong> — the <em>do</em>. One unit of work a worker can pick up and
+      finish in a single focused pass, in its own clean context. The atom of the board.</li>
+    </ul>
+    <p>The split exists so each unit of work gets <strong>exactly the context it needs and nothing
+    else</strong>. The worker loads context broad → narrow (project goal → epic brief → ticket
+    task), and runs every ticket in a fresh, isolated context so unrelated work never bleeds
+    together. You don't have to use all three — a lone ticket is fine; reach for an epic when one
+    card isn't enough, and a project when several epics share a goal.</p>
+
+    <div class="label">The lanes</div>
+    <p>Planning → Ready → In&nbsp;Progress → Blocked → <strong>Test&nbsp;&amp;&nbsp;Review</strong>
+    → Done. Review is a <em>human gate</em>: the worker parks finished work there and never
+    moves anything to Done on its own — you approve it, or send it back with a comment.</p>
+   </div>`);
+}
 function openLog(){api('/api/summary').then(s=>{
   open={kind:'log'};
   const days=s.dailyFiles||[], adays=s.agentDays||[];
@@ -625,6 +665,7 @@ function editBody(ctx,content,after){
   document.getElementById('save').onclick=()=>api('/api/save','POST',{...ctx,body:document.getElementById('ta').value}).then(load).then(after);
 }
 document.getElementById('sum').onclick=openLog;
+document.getElementById('about').onclick=openAbout;
 document.getElementById('proj').onclick=openProjects;
 document.getElementById('ov').onclick=e=>{if(e.target.id==='ov')close();};
 document.getElementById('add-t').onclick=()=>askText('New ticket','Ticket title').then(t=>{if(t&&t.trim())api('/api/create','POST',{type:'ticket',title:t.trim()}).then(load);});
