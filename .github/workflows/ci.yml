@@ -19,3 +19,13 @@ jobs:
       - run: go vet ./...
       - run: go test ./...
       - run: go build ./...
+      # Syntax-check the dashboard's inline JS (caught before it can ship in the binary).
+      - name: Check dashboard JS
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          python3 - <<'PY'
+          import re
+          js = re.findall(r'<script>(.*?)</script>', open('web/index.html').read(), re.S)[-1]
+          open('app.js', 'w').write(js)
+          PY
+          node --check app.js && rm app.js

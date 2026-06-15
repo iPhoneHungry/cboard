@@ -201,7 +201,9 @@ func orDefault(v, def string) string {
 	return v
 }
 
-func serve(host string, port int) error {
+// newMux builds the HTTP router (dashboard + API + MCP). Extracted so tests can mount it
+// with httptest without binding a port.
+func newMux() *http.ServeMux {
 	mux := http.NewServeMux()
 	// MCP endpoint for agents (more specific than "/", so it wins).
 	mux.HandleFunc("/mcp", handleMCP)
@@ -215,6 +217,11 @@ func serve(host string, port int) error {
 			http.Error(w, "method not allowed", 405)
 		}
 	})
+	return mux
+}
+
+func serve(host string, port int) error {
+	mux := newMux()
 	addr := fmt.Sprintf("%s:%d", host, port)
 	fmt.Printf("cboard serving %s\n", root)
 	fmt.Printf("  dashboard:  http://localhost:%d/\n", port)
