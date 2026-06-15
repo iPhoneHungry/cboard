@@ -1,146 +1,109 @@
 # cboard
 
-A local, filesystem-backed kanban board in a **single, dependency-free binary**. One
-`go build` produces a self-contained executable for Linux, macOS, or Windows — no Python,
-no Node, no runtime to install. The board is just folders and JSON on disk, so it's easy to
-read, diff, and back up.
+**A kanban board that lives in a folder.**
 
-It opens **three doors onto the same board**, all sharing one core:
+No database, no login, no cloud — just files on your machine. One small binary gives you
+three ways into the *same* board: a dashboard in your browser, an MCP endpoint your AI agents
+can drive, and a CLI for scripts. Made for the world where you and a coding agent share a
+to-do list.
 
-- **Dashboard** — a browser UI for humans (`http://localhost:8787/`)
-- **MCP** — typed tools for Claude and any MCP client (`http://localhost:8787/mcp`)
-- **CLI** — subcommands for scripts and cron
+[![release](https://img.shields.io/github/v/release/iPhoneHungry/cboard)](https://github.com/iPhoneHungry/cboard/releases/latest)
 
-This is a Go rewrite of an earlier Python version: the dashboard HTML/CSS/JS is carried over
-unchanged, and the on-disk format is identical, so existing boards keep working.
-
-## Install
+## 30 seconds to a board
 
 ```sh
-# devs / Go users:
-go install github.com/iPhoneHungry/cboard@latest
-
-# everyone else: grab the binary for your OS from the Releases page, then:
-chmod +x cboard-* && mv cboard-* /usr/local/bin/cboard
+go install github.com/iPhoneHungry/cboard@latest    # or grab a binary ↓
+cboard
 ```
 
-…or build from a clone: `go build -o cboard .`
+No Go? Download the binary for your OS from the
+[latest release](https://github.com/iPhoneHungry/cboard/releases/latest), make it executable,
+and run `cboard`.
 
-## Quick start
+That's the whole setup. `cboard` with no arguments opens the dashboard at
+**http://localhost:8787** and, if you don't have a board yet, creates one at `~/.cboard/board`
+and remembers it. Open the page and start dragging cards. Want the board somewhere you can
+see it? `cboard init ~/my-board` once.
+
+## Three doors, one board
+
+| | |
+|---|---|
+| 🖥  **Dashboard** | A clean browser UI — drag cards between lanes, write tickets, drop in screenshots. |
+| 🤖  **MCP** | The same board as typed tools for Claude, Codex, or any MCP client — so an agent can add, track, and *work* cards. |
+| ⌨️  **CLI** | `cboard ticket "…"`, `move`, `doctor` — for scripts and muscle memory. |
+
+And because the board is just folders and JSON, you can `git` it, `grep` it, back it up, or
+read it with your eyeballs. Nothing is hidden in a database.
+
+## Why Project → Epic → Ticket
+
+Three levels, read top-down as **why → what → do**:
+
+- 🎯 **Project** — the *why*. The goal and the docs everything under it should know about.
+- 🗂  **Epic** — the *what*. A feature too big for one sitting: a brief, shared docs, and an
+  ordered list of tickets that tracks its own progress.
+- 📋 **Ticket** — the *do*. One thing you (or an agent) can pick up and finish in a single
+  focused pass. The atom of the board.
+
+You don't have to use all three — a lone ticket is perfectly happy on its own. Reach for an
+epic when one card isn't enough, and a project when several epics share a goal. The payoff:
+each piece of work carries *exactly* the context it needs, nothing more.
+
+## Hand it to an agent
+
+The interface is MCP, so cboard isn't Claude-only — any MCP-capable tool drives the same board.
 
 ```sh
-cboard            # just run it — serves the dashboard + MCP, auto-creating a board
-```
-
-With no board configured yet, the first run creates one at `~/.cboard/board` and marks it
-active, so you never have to think about where the folders are. Every door (dashboard, MCP,
-CLI) then finds that board from any directory. Want it elsewhere? `cboard init ~/my-board`
-once, or pass `--root <dir>` / a folder argument to `serve`.
-
-## Connecting Claude (MCP)
-
-The dashboard process also serves MCP, so one running `cboard` covers both the browser and
-agents. Point Claude Code at it once:
-
-```sh
+cboard serve                                                   # dashboard + MCP, one process
 claude mcp add --transport http cboard http://localhost:8787/mcp
 ```
 
-…or drop the included [`.mcp.json`](.mcp.json) into a project so Claude offers to connect
-automatically. Tools exposed:
+For **Codex / Cursor / others**, point your tool's MCP config at `…/mcp` and let it read
+[`AGENTS.md`](AGENTS.md) — the tool-agnostic guide to the tools and how to behave as a worker.
 
-- **Author / track:** `board_snapshot`, `list_cards`, `create_ticket`, `create_epic`,
-  `create_project`, `move_card`, `add_review`, `doctor`
-- **Projects:** `list_projects`, `get_project`
-- **Worker support:** `next_card` (deterministic selection — ready order, skip paused,
-  `depends_on`, epic next-ticket), `get_card`, `set_result`, `log_progress`
-- **Pull content:** `read_file(path)` — fetch any doc/asset/context file by its
-  board-relative `path` (utf-8, or base64 for binary)
+**Want a worker?** Use the bundled [`kanban-worker` skill](skills/kanban-worker/SKILL.md): it
+takes Ready cards in order, runs each in its own clean context, and parks finished work in
+**Test & Review** for you to approve — it never marks things Done on its own, and never
+invents or reorders tasks. Or write your own loop against the tools; the deterministic bits
+(what to pick, logging, ordering) live in the binary so they can't drift.
 
-Responses are lean by design: a card's own body comes inline, but docs, context files,
-artifacts, and assets come back as **references** (`name`, `path`, `ext`, `size`). The caller
-pulls the bodies it actually needs with `read_file` — so a giant spec or a binary doesn't
-bloat every response, and it works against a remote board.
-
-An epic's tickets come back as an **overview** (id, title, status, one-line result), so a
-worker on ticket #5 sees that #1–4 are done (and what they produced) and #6–10 are pending —
-then pulls a specific sibling's full detail only when it helps, via `get_card(epicId,
-ticket=<id>)`. `next_card` also returns `next_ticket_detail` (the ticket to work, in full) so
-the common path needs no extra call.
-
-## Use it from any agent
-
-Because the interface is MCP, cboard isn't Claude-specific — any MCP-capable tool drives the
-same board:
-
-- **Claude Code** — `claude mcp add --transport http …` (above), plus the bundled
-  [`kanban-worker` skill](skills/kanban-worker/SKILL.md).
-- **Codex / Cursor / Cline / others** — add an HTTP MCP server pointing at `…/mcp` in the
-  tool's config, and read [`AGENTS.md`](AGENTS.md) — the canonical, tool-agnostic guide to
-  what cboard is, the tools, and how to act as a worker. The Claude skill is just the
-  Claude-flavored adapter of that same contract.
-
-## The worker: bring your own, or use ours
-
-The board doesn't care who moves the cards — you can drive the MCP tools however you like. If
-you want a disciplined task runner, use the bundled **`kanban-worker` skill**
-([`skills/kanban-worker/SKILL.md`](skills/kanban-worker/SKILL.md)): it picks Ready cards in
-strict order, runs **each card in its own fresh sub-agent** (context isolation), records a
-result, and parks finished work in **Test & Review** — never auto-completing to Done, never
-inventing or reordering tasks.
-
-The split is deliberate: the **deterministic mechanics** (selection, ordering, logging,
-`order.json` consistency) live in the binary as MCP tools, so they can't be gotten wrong; the
-**judgment and isolation** (which sub-agent runs what, repo-vs-artifact, the review gate) live
-in the skill, because only an agent can do those. Any MCP client can write its own worker loop
-against the same tools.
-
-## Commands
-
-| Command | What it does |
-|---|---|
-| `cboard init [dir]` | Seed a board folder and set it active |
-| `cboard serve [dir] [--port N] [--host H]` | Run the dashboard (default `localhost:8787`) |
-| `cboard ticket "Title" [--project P] [--epic E] [--body T]` | Create a ticket (lands in `planning`) |
-| `cboard epic "Title" [--project P] [--body T]` | Create an epic |
-| `cboard project "Name" [--body T]` | Create a project (groups epics/tickets) |
-| `cboard move <id> <lane>` | Move a top-level card to another lane |
-| `cboard list` | List cards by lane (JSON) |
-| `cboard log <action> <id> [--ticket T] [--summary S]` | Append worker logs + upsert the daily summary |
-| `cboard doctor [--apply]` | Check (and optionally repair) the board |
-| `cboard config get \| set <path>` | Show / set the active board |
-
-The dashboard is **unauthenticated** and binds to `127.0.0.1` by default. To reach it from a
-phone on a trusted network (e.g. Tailscale), pass `--host 0.0.0.0`.
-
-## How the board is stored
+## Where your stuff lives
 
 ```
 my-board/
-  lanes.json                     # lane ids, names, colors
-  kanban/<lane>/order.json       # ordering within a lane
-  kanban/<lane>/<id>/task.md     # frontmatter + markdown body
-  kanban/<lane>/<id>/result.json # status (todo/done/blocked/…)
-  kanban/<lane>/<id>/reviews.json# review rounds
-  kanban/<lane>/<epic>/epic.json # sub-ticket order + parallel flag
-  kanban/<lane>/<epic>/tickets/  # epic sub-tickets
-  projects/<id>/                 # project goal + shared docs
-  logs/agent/<date>.log          # rotating worker feed
-  logs/daily/<date>.md           # merged daily summary
-  trash/                         # soft-deletes (never hard-deleted)
+  lanes.json                       # the lanes and their colors
+  kanban/<lane>/order.json         # card order within a lane
+  kanban/<lane>/<id>/task.md       # a card: frontmatter + markdown
+            …/result.json          #   its outcome (done/blocked/…)
+            …/reviews.json          #   review-round history
+            …/artifacts/  …/assets/ #   what it produced; attachments
+  kanban/<lane>/<epic>/tickets/    # an epic's sub-tickets
+  projects/<id>/                   # a project's goal + shared docs
+  logs/                            # daily summaries + the agent feed
+  trash/                           # soft-deletes — nothing is ever hard-deleted
 ```
 
-Lanes: `planning → ready → in_progress → blocked → review → done`. `review` ("Test & Review")
-is a human approval gate before `done`. Every move keeps `order.json` consistent with the
-folders on disk; `cboard doctor` reconciles them if anything drifts.
+Cards flow `planning → ready → in_progress → blocked → review → done`. **Test & Review is a
+human gate**: a worker leaves finished cards there; you approve them to Done or send them back
+with a comment. Run `cboard doctor` if a board ever gets out of sync.
 
-## Develop
+The dashboard is unauthenticated and binds to `127.0.0.1`. To reach it from your phone on a
+trusted network (e.g. Tailscale), add `--host 0.0.0.0`.
+
+## CLI, briefly
+
+`init` · `serve` · `ticket` · `epic` · `project` · `move` · `list` · `log` · `doctor` ·
+`config` — run `cboard` with no args to just serve, or `cboard <cmd> -h`. Most commands take
+`--root <board>`; without it they use your active board.
+
+## Hacking on it
 
 ```sh
-go test ./...     # unit tests
+go test ./...     # model, worker, and MCP-protocol tests (stdlib only, no deps)
 go vet ./...
 go build -o cboard .
 ```
 
-The dashboard page lives in `web/index.html` and is embedded into the binary (`embed.go`),
-along with the empty starter board in `seed/`.
+The dashboard lives in `web/index.html` and the empty starter board in `seed/`; both are
+embedded into the binary. MIT licensed.
