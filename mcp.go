@@ -98,7 +98,7 @@ var mcpTools = []mcpTool{
 				return nil, err
 			}
 			if b := str(args, "body"); b != "" {
-				saveBody("planning", cid, "", b)
+				saveBody("planning", cid, "", "", b)
 			}
 			return map[string]any{"lane": "planning", "id": cid}, nil
 		},
@@ -121,7 +121,7 @@ var mcpTools = []mcpTool{
 				return nil, err
 			}
 			if b := str(args, "body"); b != "" {
-				saveBody("planning", cid, "", b)
+				saveBody("planning", cid, "", "", b)
 			}
 			return map[string]any{"lane": "planning", "id": cid}, nil
 		},

@@ -655,7 +655,7 @@ function openCard(lane,id){
   wireProject();
   wireAssets();
   wireReview({lane,id});
-  document.getElementById('edit').onclick=()=>editBody({lane,id},c.content,()=>openCard(lane,id));
+  document.getElementById('edit').onclick=()=>editInline({lane,id},c.title,c.content,()=>openCard(lane,id));
   document.getElementById('arch').onclick=()=>confirmBox('Archive ticket?','“'+(c.title||id)+'” will be hidden from the board but kept in the board’s archive/ folder.','Archive').then(ok=>{if(ok)api('/api/archive','POST',{lane,id}).then(()=>{close();load();});});
   document.getElementById('del').onclick=()=>confirmBox('Delete ticket?','“'+(c.title||id)+'” and its files will be permanently removed from disk. This cannot be undone.','Delete forever').then(ok=>{if(ok)api('/api/delete','POST',{lane,id}).then(()=>{close();load();});});
 }
@@ -685,7 +685,7 @@ function openEpic(lane,id){
   wireProject();
   wireAssets();
   wireReview({lane,id});
-  document.getElementById('edit').onclick=()=>editBody({lane,id},c.content,()=>openEpic(lane,id));
+  document.getElementById('edit').onclick=()=>editInline({lane,id},c.title,c.content,()=>openEpic(lane,id));
   document.getElementById('arch').onclick=()=>confirmBox('Archive epic?','“'+(c.title||id)+'” and its '+p.total+' ticket(s) will be hidden from the board but kept in the board’s archive/ folder.','Archive').then(ok=>{if(ok)api('/api/archive','POST',{lane,id}).then(()=>{close();load();});});
   document.getElementById('del').onclick=()=>confirmBox('Delete epic?','“'+(c.title||id)+'” and its '+p.total+' ticket(s) will be permanently removed from disk. This cannot be undone.','Delete forever').then(ok=>{if(ok)api('/api/delete','POST',{lane,id}).then(()=>{close();load();});});
   document.querySelectorAll('[data-t]').forEach(r=>r.onclick=()=>openTicket(lane,id,r.dataset.t));
@@ -729,7 +729,7 @@ function openTicket(lane,id,tid){
   wireAssets();
   wireReview({lane,id,ticketId:tid});
   document.getElementById('back').onclick=()=>openEpic(lane,id);
-  document.getElementById('edit').onclick=()=>editBody({lane,id,ticketId:tid},t.content,()=>openTicket(lane,id,tid));
+  document.getElementById('edit').onclick=()=>editInline({lane,id,ticketId:tid},t.title,t.content,()=>openTicket(lane,id,tid));
   document.getElementById('arch').onclick=()=>confirmBox('Archive ticket?','“'+(t.title||tid)+'” will be hidden from the board but kept in the board’s archive/ folder.','Archive').then(ok=>{if(ok)api('/api/archive','POST',{lane,id,ticketId:tid}).then(()=>load()).then(()=>openEpic(lane,id));});
   document.getElementById('del').onclick=()=>confirmBox('Delete ticket?','“'+(t.title||tid)+'” and its files will be permanently removed from disk. This cannot be undone.','Delete forever').then(ok=>{if(ok)api('/api/delete','POST',{lane,id,ticketId:tid}).then(()=>load()).then(()=>openEpic(lane,id));});
 }
@@ -740,6 +740,20 @@ function wireActions(ctx){
 }
 function fillLog(text){
   document.getElementById('log').innerHTML=text&&text.trim()?`<div class="logbox">${esc(text.trim())}</div>`:'<div class="empty">No activity yet.</div>';}
+// Edit a card in place: swap just the description region for a title box + body box, leaving
+// the rest of the card (move, project, attachments, log) visible — no separate stripped view.
+function editInline(ctx,title,content,after){
+  const md=document.getElementById('md');if(!md)return;
+  md.innerHTML=`<input id="ed-title" class="msel" value="${esc(title||'')}" placeholder="Title" style="margin-bottom:10px">
+    <textarea id="ed-body" style="min-height:180px">${esc(content||'')}</textarea>
+    <div style="margin-top:10px;display:flex;gap:8px"><button class="btn btn-p" id="ed-save">💾 Save</button><button class="btn btn-g" id="ed-cancel">Cancel</button></div>`;
+  document.getElementById('ed-cancel').onclick=after;
+  document.getElementById('ed-save').onclick=()=>{
+    const t=document.getElementById('ed-title').value.trim();
+    api('/api/save','POST',{...ctx,title:t||undefined,body:document.getElementById('ed-body').value}).then(load).then(after);
+  };
+}
+// editBody: in-place editor for single-content docs/goals (no title) — replaces the body region.
 function editBody(ctx,content,after){
   const b=document.getElementById('sheet').querySelector('.sheet-b');
   b.innerHTML=`<textarea id="ta">${esc(content||'')}</textarea>

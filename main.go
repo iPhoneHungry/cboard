@@ -249,7 +249,7 @@ func cmdAuthor(cmd string, args []string) error {
 			return err
 		}
 		if strings.TrimSpace(body) != "" {
-			saveBody("planning", cid, "", body)
+			saveBody("planning", cid, "", "", body)
 		}
 		return printJSON(map[string]any{"ok": true, "lane": "planning", "id": cid})
 	case "epic":
@@ -261,7 +261,7 @@ func cmdAuthor(cmd string, args []string) error {
 			return err
 		}
 		if strings.TrimSpace(body) != "" {
-			saveBody("planning", cid, "", body)
+			saveBody("planning", cid, "", "", body)
 		}
 		return printJSON(map[string]any{"ok": true, "lane": "planning", "id": cid})
 	case "project":

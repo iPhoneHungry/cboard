@@ -93,6 +93,26 @@ func TestCreateMoveLifecycle(t *testing.T) {
 	}
 }
 
+func TestSaveBodyUpdatesTitleWhenGiven(t *testing.T) {
+	newTestBoard(t)
+	cid, _ := createCard("Old Title", "ticket", "")
+	// body-only save keeps the title
+	if err := saveBody("planning", cid, "", "", "just a body"); err != nil {
+		t.Fatal(err)
+	}
+	if got := readNode(filepath.Join("kanban", "planning", cid))["title"]; got != "Old Title" {
+		t.Errorf("title changed on body-only save: %v", got)
+	}
+	// a non-empty title updates it
+	if err := saveBody("planning", cid, "", "New Title", "body again"); err != nil {
+		t.Fatal(err)
+	}
+	n := readNode(filepath.Join("kanban", "planning", cid))
+	if n["title"] != "New Title" || n["content"] != "body again" {
+		t.Errorf("title/body after edit = %v / %v", n["title"], n["content"])
+	}
+}
+
 func TestEpicWithTicket(t *testing.T) {
 	newTestBoard(t)
 	eid, _ := createCard("My Epic", "epic", "")

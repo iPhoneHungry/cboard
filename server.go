@@ -90,7 +90,7 @@ func handlePOST(w http.ResponseWriter, r *http.Request) {
 		if s("docfile") != "" {
 			err = saveDoc(s("lane"), s("id"), s("docfile"), s("body"))
 		} else {
-			err = saveBody(s("lane"), s("id"), s("ticketId"), s("body"))
+			err = saveBody(s("lane"), s("id"), s("ticketId"), s("title"), s("body"))
 		}
 	case "/api/adddoc":
 		var name string

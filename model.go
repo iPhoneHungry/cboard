@@ -584,13 +584,18 @@ func togglePause(lane, cid, ticket string) error {
 	return os.WriteFile(p, []byte(serializeFM(meta)+"\n"+content+"\n"), 0o644)
 }
 
-func saveBody(lane, cid, ticket, body string) error {
+// saveBody rewrites a card's markdown body, preserving frontmatter. A non-empty title also
+// updates the frontmatter title (so the dashboard can edit the title inline).
+func saveBody(lane, cid, ticket, title, body string) error {
 	p := mustJoin(nodeDir(lane, cid, ticket), "task.md")
 	text := readText(p)
 	if text == "" {
 		text = "---\n---\n"
 	}
 	meta, _ := parseFM(text)
+	if title != "" {
+		meta["title"] = title
+	}
 	return os.WriteFile(p, []byte(serializeFM(meta)+"\n"+strings.TrimSpace(body)+"\n"), 0o644)
 }
 
