@@ -375,6 +375,9 @@ func readBoardFile(p string) (any, error) {
 	if !isFile(abs) {
 		return nil, fmt.Errorf("not found: %s", p)
 	}
+	if !underRoot(abs) {
+		return nil, fmt.Errorf("forbidden path")
+	}
 	b, err := os.ReadFile(abs)
 	if err != nil {
 		return nil, err

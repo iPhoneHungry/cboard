@@ -1,20 +1,31 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"regexp"
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
 // root is the absolute path to the board folder (the kanban data lives directly under it).
 // It is set once per process by the CLI dispatch before any board operation runs.
 var root string
+
+// boardMu serializes all board access within the server process. Every board operation is an
+// unsynchronized read-modify-write on JSON files (order.json, result.json, epic.json, the daily
+// log), and net/http serves each request on its own goroutine while the MCP worker hits the
+// same files — so without this, two concurrent writers lose updates. HTTP and MCP entry points
+// take it; it does NOT guard a separate `cboard` CLI process mutating the same board (that would
+// need file locking — a documented limitation, not the common path).
+var boardMu sync.Mutex
 
 var lanesFallback = []map[string]any{
 	{"id": "planning", "name": "Planning", "color": "#888888"},
@@ -34,6 +45,24 @@ func safeJoin(parts ...string) (string, error) {
 		return "", fmt.Errorf("path escapes root")
 	}
 	return p, nil
+}
+
+// underRoot reports whether an existing path, with all symlinks resolved, is still inside the
+// board root. safeJoin's check is purely lexical and can be defeated by a symlink planted in the
+// board that points outside it; the file-read paths that accept a caller-supplied path (the
+// /files/ endpoint and the read_file MCP tool) run this extra check so a symlink can't turn them
+// into an arbitrary-file read. Both sides are resolved so a symlinked board root (e.g. macOS
+// /tmp → /private/tmp, or a symlinked home) doesn't produce false rejections.
+func underRoot(abs string) bool {
+	real, err := filepath.EvalSymlinks(abs)
+	if err != nil {
+		return false
+	}
+	realRoot, err := filepath.EvalSymlinks(root)
+	if err != nil {
+		return false
+	}
+	return real == realRoot || strings.HasPrefix(real, realRoot+string(os.PathSeparator))
 }
 
 // mustJoin is safeJoin for internal callers that pass trusted, fixed segments.
@@ -106,15 +135,27 @@ func serializeFM(meta map[string]any) string {
 	for _, k := range keys {
 		switch v := meta[k].(type) {
 		case []string:
-			b.WriteString(fmt.Sprintf("%s: [%s]\n", k, strings.Join(v, ", ")))
+			items := make([]string, len(v))
+			for i, s := range v {
+				items[i] = oneLine(s)
+			}
+			b.WriteString(fmt.Sprintf("%s: [%s]\n", k, strings.Join(items, ", ")))
 		case bool:
 			b.WriteString(fmt.Sprintf("%s: %t\n", k, v))
 		default:
-			b.WriteString(fmt.Sprintf("%s: %v\n", k, v))
+			b.WriteString(fmt.Sprintf("%s: %s\n", k, oneLine(fmt.Sprint(v))))
 		}
 	}
 	b.WriteString("---\n")
 	return b.String()
+}
+
+// oneLine flattens a scalar frontmatter value to a single line. Without this, a title (or any
+// field) carrying a newline or a `---` marker — easy for an agent to produce — would inject
+// extra frontmatter keys or prematurely close the block and spill into the body.
+func oneLine(s string) string {
+	s = strings.NewReplacer("\r", " ", "\n", " ").Replace(s)
+	return strings.TrimSpace(s)
 }
 
 func isPaused(meta map[string]any) bool {
@@ -138,6 +179,37 @@ func readText(path string) string {
 		return ""
 	}
 	return string(b)
+}
+
+// tailText returns at most the last maxBytes of a file. task.log is append-only and never
+// truncated, and boardSnapshot pulls every card's log on every poll — without a cap, a
+// long-lived board re-reads and re-serializes megabytes of log on a 4-second cadence. The tail
+// is what the dashboard shows anyway; older lines stay on disk.
+func tailText(path string, maxBytes int64) string {
+	fi, err := os.Stat(path)
+	if err != nil {
+		return ""
+	}
+	if fi.Size() <= maxBytes {
+		return readText(path)
+	}
+	f, err := os.Open(path)
+	if err != nil {
+		return ""
+	}
+	defer f.Close()
+	if _, err := f.Seek(fi.Size()-maxBytes, io.SeekStart); err != nil {
+		return ""
+	}
+	b, err := io.ReadAll(f)
+	if err != nil {
+		return ""
+	}
+	// Drop the partial first line so the tail starts cleanly.
+	if i := bytes.IndexByte(b, '\n'); i >= 0 && i+1 < len(b) {
+		b = b[i+1:]
+	}
+	return "…\n" + string(b)
 }
 
 func readJSON(path string) any {
@@ -244,7 +316,7 @@ func readNode(relDir string) map[string]any {
 		"result":    result,
 		"artifacts": listFiles(filepath.Join(relDir, "artifacts")),
 		"assets":    listFiles(filepath.Join(relDir, "assets")),
-		"log":       readText(mustJoin(relDir, "task.log")),
+		"log":       tailText(mustJoin(relDir, "task.log"), 64<<10),
 		"reviews":   reviews,
 	}
 }
@@ -415,14 +487,18 @@ func moveCard(cid, from, to string) error {
 	if err := os.Rename(src, dst); err != nil {
 		return err
 	}
-	updateOrder(from, func(o []string) []string { return without(o, cid) })
-	updateOrder(to, func(o []string) []string {
+	// The folder has moved; surface (don't swallow) a failure to update either order.json so a
+	// disk-full / read-only board reports the partial state instead of silently "succeeding".
+	// A startup/doctor reconcile still self-heals the ordering from the folders on disk.
+	if err := updateOrder(from, func(o []string) []string { return without(o, cid) }); err != nil {
+		return err
+	}
+	return updateOrder(to, func(o []string) []string {
 		if contains(o, cid) {
 			return o
 		}
 		return append(o, cid)
 	})
-	return nil
 }
 
 func nodeDir(lane, cid, ticket string) string {
@@ -745,10 +821,14 @@ func createCard(title, ctype, project string) (string, error) {
 		return "", err
 	}
 	if ctype == "epic" {
-		writeJSON(filepath.Join(d, "epic.json"), map[string]any{"order": []string{}, "parallel": false})
+		if err := writeJSON(filepath.Join(d, "epic.json"), map[string]any{"order": []string{}, "parallel": false}); err != nil {
+			return "", err
+		}
 		os.MkdirAll(filepath.Join(d, "tickets"), 0o755)
 	}
-	updateOrder("planning", func(o []string) []string { return append([]string{cid}, o...) })
+	if err := updateOrder("planning", func(o []string) []string { return append([]string{cid}, o...) }); err != nil {
+		return "", err
+	}
 	return cid, nil
 }
 
@@ -927,7 +1007,7 @@ func reconcile(order, folders []string) []string {
 	oset := map[string]bool{}
 	out := []string{}
 	for _, c := range order {
-		if fset[c] {
+		if fset[c] && !oset[c] { // skip ids that don't exist, and de-dupe repeats
 			out = append(out, c)
 			oset[c] = true
 		}

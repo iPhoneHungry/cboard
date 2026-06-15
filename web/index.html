@@ -158,11 +158,16 @@ textarea{width:100%;min-height:220px;font-family:monospace;font-size:13px;paddin
 <div class="promptov hidden" id="promptov"><div class="promptbox" id="promptbox"></div></div>
 <div class="previewov hidden" id="previewov"></div>
 
-<script src="https://cdn.jsdelivr.net/npm/marked@9/marked.min.js"></script>
+<script src="/vendor/marked.min.js"></script>
+<script src="/vendor/purify.min.js"></script>
 <script>
 let BOARD={lanes:[],cards:{}}, PROJECTS=[], open=null, poll=null, mLane=null, bulkLane=null;
 const bulkSel=new Set();
 const esc=s=>String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+// safeMd renders markdown and strips any embedded HTML that could execute. Card/doc/project
+// bodies are written by agents (over MCP) and by anyone on the LAN under --host 0.0.0.0, so the
+// content crossing into innerHTML is untrusted — every markdown→innerHTML path goes through here.
+const safeMd=t=>DOMPurify.sanitize(marked.parse(t||''));
 const api=(p,m,b)=>fetch(p,{method:m||'GET',headers:{'Content-Type':'application/json'},body:b?JSON.stringify(b):undefined}).then(r=>r.json());
 // Themed replacement for native prompt(). Resolves the entered string, or null if cancelled.
 function askText(title,placeholder){
@@ -355,7 +360,8 @@ function find(lane,id){return (BOARD.cards[lane]||[]).find(c=>c.id===id);}
 function renderMd(node){
   let html=marked.parse(node.content||'');
   const map={};(node.assets||[]).forEach(a=>{map[a.name]=a.path;map['assets/'+a.name]=a.path;});
-  return html.replace(/src="([^"]+)"/g,(m,s)=>{const k=s.replace(/^\.\//,'');const p=map[k]||map[s];return p?`src="/files/${encodeURI(p)}"`:m;});
+  html=html.replace(/src="([^"]+)"/g,(m,s)=>{const k=s.replace(/^\.\//,'');const p=map[k]||map[s];return p?`src="/files/${encodeURI(p)}"`:m;});
+  return DOMPurify.sanitize(html); // sanitize last so the rewritten asset srcs survive but scripts/handlers don't
 }
 function uploadCtrl(){return `<label class="btn btn-g" for="up">📎 Add photo/file</label><input id="up" type="file" multiple style="display:none">`;}
 function fileB64(f){return new Promise(r=>{const x=new FileReader();x.onload=()=>r(x.result.split(',')[1]);x.readAsDataURL(f);});}
@@ -404,7 +410,7 @@ function openContext(){open={kind:'context'};
      <div style="font-size:12.5px;color:var(--muted);font-weight:600;line-height:1.5;margin-bottom:12px">Standing context shared by every card — where repos live, test tooling (“when I say <em>test</em>, use…”), conventions. Agents load this first, before a card's own details.</div>
      <div style="margin-bottom:12px"><button class="btn btn-g" id="ctx-edit">✏️ Edit</button></div>
      <div class="md" id="ctx-md"></div></div>`);
-   document.getElementById('ctx-md').innerHTML=body.trim()?marked.parse(body):'<span class="empty">No board context yet. Add repo locations, test commands, conventions…</span>';
+   document.getElementById('ctx-md').innerHTML=body.trim()?safeMd(body):'<span class="empty">No board context yet. Add repo locations, test commands, conventions…</span>';
    document.getElementById('ctx-edit').onclick=()=>{const b=document.querySelector('.sheet-b');
      b.innerHTML=`<textarea id="ctx-ta" placeholder="# Repos&#10;- main app: ~/code/app (branch: dev)&#10;&#10;# Testing&#10;When I say “test”, run the Playwright harness in ~/code/app/e2e.">${esc(body)}</textarea>
       <div style="margin-top:12px;display:flex;gap:8px"><button class="btn btn-p" id="ctx-save">💾 Save</button><button class="btn btn-g" id="ctx-cancel">Cancel</button></div>`;
@@ -472,7 +478,7 @@ function viewLogFile(path,title,md){fetch('/files/'+path.split('/').map(encodeUR
   open={kind:'log'};
   showSheet(`<div class="sheet-h"><button class="x" id="back">←</button><div class="sheet-t">${esc(title)}</div><button class="x" data-x>×</button></div>
    <div class="sheet-b">${md?'<div class="md" id="v"></div>':`<div class="logbox">${t&&t.trim()?esc(t.trim()):'(empty)'}</div>`}</div>`);
-  if(md)document.getElementById('v').innerHTML=t&&t.trim()?marked.parse(t):'<span class="empty">Empty.</span>';
+  if(md)document.getElementById('v').innerHTML=t&&t.trim()?safeMd(t):'<span class="empty">Empty.</span>';
   document.getElementById('back').onclick=openLog;});}
 
 function docsHtml2(docs){
@@ -504,7 +510,7 @@ function openProject(id){api('/api/projects').then(ps=>{PROJECTS=ps;const p=ps.f
     <div class="label">Epics & tickets (${p.members.length})</div>${mem}
     <div style="margin-top:10px;display:flex;gap:6px"><button class="btn btn-g" id="addt">+ Ticket</button><button class="btn btn-g" id="adde">+ Epic</button></div>
    </div>`);
-  document.getElementById('md').innerHTML=p.goal?marked.parse(p.goal):'<span class="empty">No goal written yet.</span>';
+  document.getElementById('md').innerHTML=p.goal?safeMd(p.goal):'<span class="empty">No goal written yet.</span>';
   document.getElementById('back').onclick=openProjects;
   document.getElementById('done').onclick=()=>api('/api/project/done','POST',{id,done:!p.done}).then(()=>openProject(id));
   document.getElementById('archproj').onclick=()=>confirmBox('Archive project?','“'+projTitle(p)+'” will be hidden and kept in the board’s archive/ folder. Its epics/tickets are NOT touched — they just lose the project tag.','Archive').then(ok=>{if(ok)api('/api/project/archive','POST',{id}).then(load).then(openProjects);});
@@ -523,7 +529,7 @@ function openProjectDoc(pid,name){api('/api/projects').then(ps=>{const p=ps.find
   if(d.content==null){window.open('/files/'+encodeURI(d.path),'_blank');return openProject(pid);}
   showSheet(`<div class="sheet-h"><button class="x" id="back">←</button><div class="sheet-t">📄 ${esc(name)}</div><button class="x" data-x>×</button></div>
    <div class="sheet-b"><div style="margin-bottom:12px"><button class="btn btn-g" id="edit">✏️ Edit</button></div><div class="md" id="md"></div></div>`);
-  document.getElementById('md').innerHTML=d.content?marked.parse(d.content):'<span class="empty">Empty doc.</span>';
+  document.getElementById('md').innerHTML=d.content?safeMd(d.content):'<span class="empty">Empty doc.</span>';
   document.getElementById('back').onclick=()=>openProject(pid);
   document.getElementById('edit').onclick=()=>{const b=document.querySelector('.sheet-b');
     b.innerHTML=`<textarea id="ta">${esc(d.content||'')}</textarea><div style="margin-top:12px;display:flex;gap:8px"><button class="btn btn-p" id="save">💾 Save</button><button class="btn btn-g" id="cancel">Cancel</button></div>`;
@@ -776,7 +782,7 @@ function openDoc(lane,id,name){
   if(d.content==null){window.open('/files/'+encodeURI(d.path),'_blank');return;}
   showSheet(`<div class="sheet-h"><button class="x" id="back">←</button><div class="sheet-t">📄 ${esc(name)}</div><button class="x" data-x>×</button></div>
    <div class="sheet-b"><div style="margin-bottom:12px"><button class="btn btn-g" id="edit">✏️ Edit</button></div><div class="md" id="md"></div></div>`);
-  document.getElementById('md').innerHTML=d.content?marked.parse(d.content):'<span class="empty">Empty doc.</span>';
+  document.getElementById('md').innerHTML=d.content?safeMd(d.content):'<span class="empty">Empty doc.</span>';
   document.getElementById('back').onclick=()=>openEpic(lane,id);
   document.getElementById('edit').onclick=()=>{
     const b=document.querySelector('.sheet-b');
