@@ -1,0 +1,634 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>cboard</title>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{--primary:#667eea;--bg:#eef0f7;--text:#2d3748;--muted:#718096;--border:#e2e8f0;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Nunito',sans-serif;background:var(--bg);color:var(--text);}
+header{position:sticky;top:0;z-index:5;background:#fff;border-bottom:1px solid var(--border);
+  display:flex;gap:8px;align-items:center;padding:calc(10px + env(safe-area-inset-top)) 14px 10px;flex-wrap:wrap;}
+.wordmark{font-weight:800;color:var(--primary);font-size:16px;flex:1;}
+.hactions{display:flex;gap:8px;flex-wrap:wrap;}
+.btn{font-family:inherit;font-weight:700;font-size:13px;border:none;border-radius:18px;padding:6px 13px;cursor:pointer;}
+.btn-p{background:var(--primary);color:#fff;}
+.btn-g{background:transparent;color:var(--muted);border:2px solid var(--border);}
+.board{display:flex;gap:12px;padding:14px;overflow-x:auto;align-items:flex-start;}
+.lane{background:#fff;border-radius:10px;min-width:250px;max-width:250px;flex:0 0 auto;box-shadow:0 1px 3px rgba(0,0,0,.08);overflow:hidden;}
+.lane-h{padding:9px 12px;border-bottom:3px solid var(--lc,#667eea);display:flex;gap:8px;align-items:center;}
+.lane-n{font-weight:800;font-size:11px;text-transform:uppercase;letter-spacing:.6px;flex:1;color:var(--lc,#333);}
+.lane-c{background:var(--lc,#999);color:#fff;border-radius:10px;font-size:11px;font-weight:800;padding:1px 7px;}
+.lane-b{padding:8px;display:flex;flex-direction:column;gap:7px;min-height:30px;border-radius:8px;}
+.lane-b.dragover{background:#eef0ff;outline:2px dashed var(--primary);outline-offset:-4px;}
+.card{background:#fff;border:2px solid var(--border);border-radius:8px;padding:10px 11px;cursor:grab;-webkit-user-select:none;user-select:none;}
+.card:active{border-color:var(--primary);cursor:grabbing;}
+.card.dragging{opacity:.45;}
+.card.epic{border-left:4px solid #b794f4;}
+.card.paused{opacity:.6;}
+.c-title{font-weight:700;font-size:13.5px;line-height:1.3;}
+.c-foot{display:flex;gap:5px;flex-wrap:wrap;margin-top:6px;}
+.tag{font-size:10.5px;font-weight:700;padding:2px 7px;border-radius:8px;background:var(--bg);color:var(--muted);}
+.tag-epic{background:#faf5ff;color:#805ad5;}.tag-art{background:#f0fff4;color:#2f855a;}
+.tag-repo{background:#ebf8ff;color:#2b6cb0;}.tag-pause{background:#fffaf0;color:#c05621;}
+.tag-proj{background:#eef2ff;color:#4f46e5;}
+.pbar{height:6px;background:var(--bg);border-radius:4px;margin-top:7px;overflow:hidden;}
+.pfill{height:100%;background:#22c55e;}
+.ptext{font-size:10px;color:var(--muted);font-weight:700;margin-top:3px;}
+.st{font-size:10px;font-weight:800;padding:2px 8px;border-radius:9px;text-transform:uppercase;}
+.st-todo{background:#e2e8f0;color:#4a5568;}.st-done{background:#c6f6d5;color:#276749;}
+.st-blocked{background:#fed7d7;color:#c53030;}.st-needs_review{background:#feebc8;color:#b7791f;}
+.overlay{position:fixed;inset:0;background:rgba(15,15,30,.55);z-index:50;overflow-y:auto;padding:20px 12px 40px;}
+.overlay.hidden{display:none;}
+.sheet{background:#fff;border-radius:12px;max-width:680px;margin:0 auto;box-shadow:0 20px 50px rgba(0,0,0,.3);}
+.sheet-h{display:flex;gap:10px;align-items:flex-start;padding:16px 18px;border-bottom:1px solid var(--border);}
+.sheet-t{flex:1;font-weight:800;font-size:18px;}
+.x{border:none;background:var(--bg);border-radius:50%;width:30px;height:30px;font-size:17px;cursor:pointer;color:var(--muted);}
+.sheet-b{padding:16px 18px 22px;}
+.meta{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px;align-items:center;}
+.label{font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);font-weight:800;margin:16px 0 9px;}
+.md{font-size:14px;line-height:1.6;}
+.md h1,.md h2,.md h3{margin:14px 0 7px;}.md p{margin-bottom:9px;}.md ul,.md ol{margin:6px 0 9px 20px;}
+.md code{background:var(--bg);padding:1px 5px;border-radius:4px;border:1px solid var(--border);font-size:12.5px;}
+.md pre{background:#1a1d23;color:#abb2bf;padding:12px;border-radius:8px;overflow-x:auto;}
+.md img{max-width:100%;border-radius:8px;}
+.iframe{width:100%;height:300px;border:1px solid var(--border);border-radius:8px;background:#fff;}
+.arow{display:flex;gap:9px;align-items:center;background:var(--bg);border-radius:7px;padding:8px 11px;font-size:12.5px;font-weight:700;margin-top:6px;}
+.arow span{flex:1;word-break:break-all;}
+.arow a{color:var(--primary);font-weight:800;text-decoration:none;}
+.trow{display:flex;gap:9px;align-items:center;background:var(--bg);border-radius:8px;padding:10px 12px;margin-top:6px;cursor:pointer;}
+.trow .tt{flex:1;font-weight:700;font-size:13.5px;}
+.movebar{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;}
+.msel{width:100%;font-family:inherit;font-weight:700;font-size:14px;padding:9px 12px;border:2px solid var(--border);border-radius:18px;background:#fff;color:var(--text);}
+.logbox{background:#1a1d23;color:#abb2bf;padding:11px 13px;border-radius:8px;font-family:monospace;font-size:12px;white-space:pre-wrap;max-height:220px;overflow-y:auto;}
+.empty{color:var(--muted);font-style:italic;font-size:13px;}
+textarea{width:100%;min-height:220px;font-family:monospace;font-size:13px;padding:11px;border:2px solid var(--primary);border-radius:8px;resize:vertical;}
+/* Themed prompt modal (replaces native prompt()) */
+.promptov{position:fixed;inset:0;background:rgba(15,15,30,.55);z-index:80;display:flex;align-items:center;justify-content:center;padding:20px;}
+.promptov.hidden{display:none;}
+.promptbox{background:#fff;border-radius:14px;width:100%;max-width:420px;box-shadow:0 20px 50px rgba(0,0,0,.35);overflow:hidden;animation:popin .14s ease;}
+@keyframes popin{from{transform:scale(.94);opacity:0;}to{transform:scale(1);opacity:1;}}
+.promptbox-h{font-weight:800;font-size:16px;padding:16px 18px 0;color:var(--text);}
+.promptbox-b{padding:12px 18px 0;}
+.promptbox input{width:100%;font-family:inherit;font-size:15px;padding:11px 13px;border:2px solid var(--border);border-radius:10px;color:var(--text);outline:none;}
+.promptbox input:focus{border-color:var(--primary);}
+.promptbox-f{display:flex;justify-content:flex-end;gap:8px;padding:14px 18px 16px;}
+.btn-danger{background:#fff;color:#e53e3e;border:2px solid #f3c4c4;}
+/* Attachment file list with thumbnails + preview */
+.filelist{display:flex;flex-direction:column;gap:6px;max-height:264px;overflow-y:auto;margin-top:6px;padding-right:2px;}
+.fileitem{display:flex;align-items:center;gap:10px;padding:7px 9px;border:1px solid var(--border);border-radius:9px;background:#fff;cursor:pointer;}
+.fileitem:hover{border-color:var(--primary);}
+.fileitem .thumb{width:42px;height:42px;border-radius:6px;flex:0 0 auto;background:var(--bg);display:flex;align-items:center;justify-content:center;font-size:20px;overflow:hidden;}
+.fileitem .thumb img{width:100%;height:100%;object-fit:cover;}
+.fileitem .fmeta{flex:1;min-width:0;}
+.fileitem .fname{font-weight:700;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.fileitem .fsub{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;}
+.fileitem .fopen{color:var(--primary);font-weight:800;font-size:12px;flex:0 0 auto;}
+/* Full-screen preview lightbox */
+.previewov{position:fixed;inset:0;background:rgba(8,8,16,.84);z-index:90;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:22px;}
+.previewov.hidden{display:none;}
+.previewov img{max-width:94vw;max-height:80vh;border-radius:8px;box-shadow:0 10px 40px rgba(0,0,0,.5);}
+.previewov iframe{width:min(960px,94vw);height:80vh;background:#fff;border:none;border-radius:8px;}
+.previewbar{display:flex;gap:12px;align-items:center;margin-bottom:12px;color:#fff;font-weight:700;font-size:14px;max-width:94vw;}
+.previewbar a{color:#9ecbff;font-weight:800;text-decoration:none;}
+.previewbar .pclose{margin-left:auto;cursor:pointer;background:rgba(255,255,255,.16);border:none;color:#fff;border-radius:50%;width:32px;height:32px;font-size:18px;font-weight:800;}
+/* Review rounds + feedback */
+.rounds{display:flex;flex-direction:column;gap:8px;margin:6px 0;}
+.round{border:1px solid var(--border);border-left:3px solid #a855f7;border-radius:8px;padding:8px 10px;background:#faf8ff;}
+.round-h{font-size:12px;font-weight:800;color:#7c3aed;}
+.round-c{font-size:13px;margin-top:3px;white-space:pre-wrap;}
+.round-c.empty,.round-sys{color:var(--muted);}
+.round-sys{font-size:11px;margin-top:4px;font-family:ui-monospace,monospace;}
+.rcomment{width:100%;min-height:64px;font-family:inherit;font-size:14px;padding:9px 11px;border:2px solid var(--border);border-radius:9px;resize:vertical;}
+.rcomment:focus{border-color:var(--primary);outline:none;}
+.rbtns{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;}
+/* Bulk select (Test & Review lane) */
+.bulkbar{display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:12px;font-weight:800;color:var(--text);margin-bottom:4px;}
+.bulkbtn{margin-bottom:4px;}
+.card.sel{outline:2px solid var(--primary);outline-offset:1px;background:#eef0ff;}
+/* Mobile lane switcher — hidden on desktop */
+.lanenav{display:none;}
+@media (max-width:768px){
+  header{flex-direction:column;align-items:flex-start;gap:10px;}
+  .wordmark{flex:none;}
+  .hactions{width:100%;}
+  .hactions .btn{flex:1 1 auto;text-align:center;}
+  .lanenav{display:flex;flex-direction:column;gap:8px;padding:12px 14px 6px;}
+  .lanenav-top{display:flex;align-items:center;gap:10px;}
+  .lanenav-arrow{border:none;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.12);border-radius:50%;width:34px;height:34px;font-size:16px;font-weight:800;color:var(--text);cursor:pointer;flex:0 0 auto;}
+  .lanenav-arrow:active{transform:scale(.92);}
+  .lanenav-name{flex:1;text-align:center;font-weight:800;font-size:13px;text-transform:uppercase;letter-spacing:.6px;color:var(--lc,#333);}
+  .lanenav-count{background:var(--lc,#999);color:#fff;border-radius:10px;font-size:11px;font-weight:800;padding:1px 8px;}
+  .lanenav-dots{display:flex;justify-content:center;gap:6px;flex-wrap:wrap;}
+  .lanenav-dots i{min-width:22px;height:22px;padding:0 6px;border-radius:11px;font-style:normal;font-size:11px;font-weight:800;
+    display:flex;align-items:center;justify-content:center;background:#e7e9f1;color:var(--muted);cursor:pointer;transition:.15s;}
+  .lanenav-dots i.empty{opacity:.5;}
+  .lanenav-dots i.on{background:var(--dc,#667eea);color:#fff;opacity:1;transform:scale(1.08);}
+  .board{display:block;overflow:visible;padding:0 12px 18px;}
+  .lane{display:none;min-width:0;max-width:none;width:100%;box-shadow:none;}
+  .lane.active{display:block;}
+  .lane .lane-h{display:none;} /* lane name lives in the switcher on mobile */
+  .lane-b{min-height:55vh;}
+}
+</style></head>
+<body>
+<header>
+  <div class="wordmark">📋 cboard</div>
+  <div class="hactions">
+    <button class="btn btn-g" id="add-t">+ Ticket</button>
+    <button class="btn btn-g" id="add-e">+ Epic</button>
+    <button class="btn btn-g" id="proj">🎯 Projects</button>
+    <button class="btn btn-g" id="sum">📋 Log</button>
+  </div>
+</header>
+<div id="lanenav" class="lanenav"></div>
+<div id="board" class="board"></div>
+<div class="overlay hidden" id="ov"><div class="sheet" id="sheet"></div></div>
+<div class="promptov hidden" id="promptov"><div class="promptbox" id="promptbox"></div></div>
+<div class="previewov hidden" id="previewov"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/marked@9/marked.min.js"></script>
+<script>
+let BOARD={lanes:[],cards:{}}, PROJECTS=[], open=null, poll=null, mLane=null, reviewBulk=false;
+const reviewSel=new Set();
+const esc=s=>String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+const api=(p,m,b)=>fetch(p,{method:m||'GET',headers:{'Content-Type':'application/json'},body:b?JSON.stringify(b):undefined}).then(r=>r.json());
+// Themed replacement for native prompt(). Resolves the entered string, or null if cancelled.
+function askText(title,placeholder){
+  return new Promise(resolve=>{
+    const ov=document.getElementById('promptov'),box=document.getElementById('promptbox');
+    box.innerHTML=`<div class="promptbox-h">${esc(title)}</div>
+      <div class="promptbox-b"><input id="prompt-in" type="text" placeholder="${esc(placeholder||'')}" autocomplete="off"></div>
+      <div class="promptbox-f"><button class="btn btn-g" id="prompt-cancel">Cancel</button><button class="btn btn-p" id="prompt-ok">OK</button></div>`;
+    ov.classList.remove('hidden');
+    const inp=document.getElementById('prompt-in');inp.focus();
+    let done=false;
+    const fin=v=>{if(done)return;done=true;ov.classList.add('hidden');document.removeEventListener('keydown',onKey);resolve(v);};
+    const onKey=e=>{if(e.key==='Enter')fin(inp.value);else if(e.key==='Escape')fin(null);};
+    document.addEventListener('keydown',onKey);
+    document.getElementById('prompt-ok').onclick=()=>fin(inp.value);
+    document.getElementById('prompt-cancel').onclick=()=>fin(null);
+    ov.onclick=e=>{if(e.target===ov)fin(null);};
+  });
+}
+// Themed yes/no confirm. Resolves true if confirmed.
+function confirmBox(title,body,okLabel){
+  return new Promise(resolve=>{
+    const ov=document.getElementById('promptov'),box=document.getElementById('promptbox');
+    box.innerHTML=`<div class="promptbox-h">${esc(title)}</div>
+      <div class="promptbox-b" style="font-size:14px;color:var(--muted)">${esc(body||'')}</div>
+      <div class="promptbox-f"><button class="btn btn-g" id="c-cancel">Cancel</button><button class="btn btn-danger" id="c-ok">${esc(okLabel||'Delete')}</button></div>`;
+    ov.classList.remove('hidden');
+    let done=false;const fin=v=>{if(done)return;done=true;ov.classList.add('hidden');document.removeEventListener('keydown',onKey);resolve(v);};
+    const onKey=e=>{if(e.key==='Escape')fin(false);};
+    document.addEventListener('keydown',onKey);
+    document.getElementById('c-ok').onclick=()=>fin(true);
+    document.getElementById('c-cancel').onclick=()=>fin(false);
+    ov.onclick=e=>{if(e.target===ov)fin(false);};
+  });
+}
+function fmtSize(n){if(!n)return '';if(n<1024)return n+' B';if(n<1048576)return (n/1024).toFixed(0)+' KB';return (n/1048576).toFixed(1)+' MB';}
+const PREVIEWABLE=/\.(png|jpe?g|gif|webp|svg|bmp|avif|pdf|html?|txt|md|json|csv)$/i;
+// Lightbox preview for an attachment. Images & pdf/html render inline; others fall back to a new tab.
+function previewFile(path,name){
+  const ov=document.getElementById('previewov');const url='/files/'+path.split('/').map(encodeURIComponent).join('/');
+  const isImg=/\.(png|jpe?g|gif|webp|svg|bmp|avif)$/i.test(name);
+  const isDoc=/\.(pdf|html?|txt|md|json|csv)$/i.test(name);
+  if(!isImg&&!isDoc){window.open(url,'_blank');return;}
+  const inner=isImg?`<img src="${url}">`:`<iframe src="${url}"></iframe>`;
+  ov.innerHTML=`<div class="previewbar"><span>${esc(name)}</span><a href="${url}" target="_blank">Open ↗</a><button class="pclose" id="pv-x">×</button></div>${inner}`;
+  ov.classList.remove('hidden');
+  const cl=()=>{ov.classList.add('hidden');ov.innerHTML='';document.removeEventListener('keydown',onK);};
+  const onK=e=>{if(e.key==='Escape')cl();};document.addEventListener('keydown',onK);
+  document.getElementById('pv-x').onclick=cl;
+  ov.onclick=e=>{if(e.target===ov)cl();};
+}
+function lcolor(l){return l.color||'#667eea';}
+function statusTag(s,lane){
+  if(!s||s==='todo')return '';
+  // hide when the status just echoes the lane it's in (done-in-done, blocked-in-blocked)
+  if(lane&&(s===lane||(s==='done'&&lane==='done')||(s==='blocked'&&lane==='blocked')))return '';
+  return `<span class="st st-${esc(s)}">${esc(s)}</span>`;
+}
+function targetTag(c){if(c.repo){const r=String(c.repo).replace(/\/+$/,'').split('/').pop()||c.repo;return `<span class="tag tag-repo">🔗 ${esc(r)}${c.branch?'@'+esc(c.branch):''}</span>`;}return '<span class="tag tag-art">📦 artifact</span>';}
+
+function load(){return Promise.all([api('/api/board'),api('/api/projects')]).then(([b,p])=>{BOARD=b;PROJECTS=Array.isArray(p)?p:[];render();if(open)reopen();});}
+function projTitle(p){const m=(p.goal||'').match(/^#\s*(.+)$/m);return m?m[1].trim():p.id;}
+function projectSelect(node,ctx){
+  // hide done projects from the picker, but keep the one already assigned to this card
+  const list=PROJECTS.filter(p=>!p.done||p.id===node.project);
+  const opts=['<option value="">— no project —</option>'].concat(list.map(p=>`<option value="${esc(p.id)}" ${node.project===p.id?'selected':''}>${esc(projTitle(p))}${p.done?' (done)':''}</option>`)).join('');
+  return `<div style="margin-bottom:12px"><select class="msel" id="psel" data-pl="${esc(ctx.lane)}" data-pi="${esc(ctx.id)}" data-pt="${esc(ctx.ticketId||'')}">${opts}</select></div>`;
+}
+function wireProject(){const ps=document.getElementById('psel');if(!ps)return;
+  ps.onchange=()=>api('/api/setproject','POST',{lane:ps.dataset.pl,id:ps.dataset.pi,ticketId:ps.dataset.pt||undefined,project:ps.value}).then(load);}
+
+function render(){
+  const el=document.getElementById('board');
+  el.innerHTML=BOARD.lanes.map(l=>{
+    const cs=BOARD.cards[l.id]||[];
+    const bar=l.id==='review'?reviewBulkBar(cs):'';
+    return `<div class="lane"><div class="lane-h" style="--lc:${lcolor(l)}">
+      <span class="lane-n">${esc(l.name)}</span><span class="lane-c">${cs.length}</span></div>
+      <div class="lane-b" data-lane="${esc(l.id)}">${bar}${cs.map(c=>cardHtml(c,l.id)).join('')||'<div class="empty" style="padding:6px">—</div>'}</div></div>`;
+  }).join('');
+  el.querySelectorAll('.card').forEach(x=>{
+    const lane=x.dataset.lane,id=x.dataset.id;
+    if(lane==='review'&&reviewBulk){
+      x.setAttribute('draggable','false');
+      if(reviewSel.has(id))x.classList.add('sel');
+      x.onclick=()=>{reviewSel.has(id)?reviewSel.delete(id):reviewSel.add(id);render();};
+    }else x.onclick=()=>{if(!dragId)openCard(lane,id);};
+  });
+  wireDnD();
+  wireBulk();
+  renderLaneNav();
+  applyMobileLane();
+  initBoardSwipe();
+}
+function reviewBulkBar(cs){
+  if(!reviewBulk)return cs.length?`<button class="btn btn-g bulkbtn" data-bulk="start">☑ Select</button>`:'';
+  return `<div class="bulkbar"><span>${reviewSel.size} selected</span>
+    <button class="btn btn-g" data-bulk="all">All</button>
+    <button class="btn btn-p" data-bulk="done">Move to Done →</button>
+    <button class="btn btn-g" data-bulk="cancel">✕</button></div>`;
+}
+function wireBulk(){
+  document.querySelectorAll('#board [data-bulk]').forEach(b=>b.onclick=e=>{e.stopPropagation();const a=b.dataset.bulk;
+    if(a==='start'){reviewBulk=true;render();}
+    else if(a==='cancel'){reviewBulk=false;reviewSel.clear();render();}
+    else if(a==='all'){const cs=BOARD.cards['review']||[];const all=cs.length&&cs.every(c=>reviewSel.has(c.id));cs.forEach(c=>all?reviewSel.delete(c.id):reviewSel.add(c.id));render();}
+    else if(a==='done'){const ids=[...reviewSel];if(!ids.length){reviewBulk=false;render();return;}
+      api('/api/bulkmove','POST',{from:'review',to:'done',ids}).then(()=>{reviewBulk=false;reviewSel.clear();load();});}
+  });
+}
+let dragId=null, dragFrom=null;
+function wireDnD(){
+  document.querySelectorAll('#board .card').forEach(c=>{
+    c.ondragstart=e=>{dragId=c.dataset.id;dragFrom=c.dataset.lane;c.classList.add('dragging');e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('text/plain',dragId);};
+    c.ondragend=()=>{c.classList.remove('dragging');dragId=null;dragFrom=null;document.querySelectorAll('.lane-b.dragover').forEach(z=>z.classList.remove('dragover'));};
+  });
+  document.querySelectorAll('#board .lane-b').forEach(z=>{
+    z.ondragover=e=>{if(dragId&&z.dataset.lane!==dragFrom){e.preventDefault();e.dataTransfer.dropEffect='move';z.classList.add('dragover');}};
+    z.ondragleave=()=>z.classList.remove('dragover');
+    z.ondrop=e=>{e.preventDefault();z.classList.remove('dragover');
+      const to=z.dataset.lane;if(dragId&&dragFrom&&to&&to!==dragFrom){const id=dragId,from=dragFrom;dragId=null;
+        api('/api/move','POST',{id,from,to}).then(load);}};
+  });
+}
+function laneIds(){return BOARD.lanes.map(l=>l.id);}
+function activeLaneIdx(){const ids=laneIds();const i=ids.indexOf(mLane);return i<0?0:i;}
+function setMobileLane(idx){const ids=laneIds();if(!ids.length)return;mLane=ids[(idx+ids.length)%ids.length];renderLaneNav();applyMobileLane();}
+function renderLaneNav(){
+  const nav=document.getElementById('lanenav');if(!nav)return;
+  const ids=laneIds();if(!ids.length){nav.innerHTML='';return;}
+  if(ids.indexOf(mLane)<0)mLane=ids[0];
+  const l=BOARD.lanes[activeLaneIdx()];const cs=BOARD.cards[l.id]||[];
+  nav.style.setProperty('--lc',lcolor(l));
+  nav.innerHTML=`<div class="lanenav-top">
+      <button class="lanenav-arrow" id="ln-prev">‹</button>
+      <span class="lanenav-name">${esc(l.name)}</span>
+      <span class="lanenav-count">${cs.length}</span>
+      <button class="lanenav-arrow" id="ln-next">›</button></div>
+    <div class="lanenav-dots">${ids.map((id,i)=>{const n=(BOARD.cards[id]||[]).length;return `<i class="${i===activeLaneIdx()?'on':''}${n?'':' empty'}" data-i="${i}" style="--dc:${lcolor(BOARD.lanes[i])}" title="${esc(BOARD.lanes[i].name)}">${n}</i>`;}).join('')}</div>`;
+  nav.querySelector('#ln-prev').onclick=()=>setMobileLane(activeLaneIdx()-1);
+  nav.querySelector('#ln-next').onclick=()=>setMobileLane(activeLaneIdx()+1);
+  nav.querySelectorAll('.lanenav-dots i').forEach(d=>d.onclick=()=>setMobileLane(+d.dataset.i));
+}
+function applyMobileLane(){
+  // .lane wrappers render in the same order as BOARD.lanes, so match by index.
+  const active=mLane||(BOARD.lanes[0]&&BOARD.lanes[0].id), ids=laneIds();
+  document.querySelectorAll('#board .lane').forEach((el,i)=>el.classList.toggle('active',ids[i]===active));
+}
+let boardSwipeInit=false;
+function initBoardSwipe(){
+  if(boardSwipeInit)return;const el=document.getElementById('board');if(!el)return;boardSwipeInit=true;
+  let sx=0,sy=0,axis=null;
+  el.addEventListener('touchstart',e=>{if(window.innerWidth>768||e.touches.length>1){axis='off';return;}sx=e.touches[0].clientX;sy=e.touches[0].clientY;axis=null;},{passive:true});
+  el.addEventListener('touchmove',e=>{if(axis==='off'||axis==='v')return;const dx=e.touches[0].clientX-sx,dy=e.touches[0].clientY-sy;if(!axis&&(Math.abs(dx)>6||Math.abs(dy)>6))axis=Math.abs(dx)>Math.abs(dy)?'h':'v';},{passive:true});
+  el.addEventListener('touchend',e=>{if(axis!=='h')return;const dx=e.changedTouches[0].clientX-sx;if(Math.abs(dx)>55)setMobileLane(activeLaneIdx()+(dx<0?1:-1));axis=null;},{passive:true});
+}
+function cardHtml(c,lane){
+  let prog='';
+  if(c.type==='epic'){const p=c.progress||{done:0,total:0},pct=p.total?Math.round(p.done/p.total*100):0;
+    prog=`<div class="pbar"><div class="pfill" style="width:${pct}%"></div></div><div class="ptext">${p.done}/${p.total} tickets</div>`;}
+  const art=(c.artifacts||[]).length;
+  return `<div class="card ${c.type==='epic'?'epic':''} ${c.paused?'paused':''}" draggable="true" data-id="${esc(c.id)}" data-lane="${esc(lane)}">
+    <div class="c-title">${esc(c.title)}</div>
+    <div class="c-foot">${c.type==='epic'?'<span class="tag tag-epic">🗂 epic</span>':targetTag(c)}
+      ${statusTag(c.status,lane)}${c.paused?'<span class="tag tag-pause">⏸</span>':''}
+      ${c.project?`<span class="tag tag-proj">🎯 ${esc(c.project)}</span>`:''}
+      ${art?`<span class="tag">🌐 ${art}</span>`:''}</div>${prog}</div>`;
+}
+function find(lane,id){return (BOARD.cards[lane]||[]).find(c=>c.id===id);}
+function renderMd(node){
+  let html=marked.parse(node.content||'');
+  const map={};(node.assets||[]).forEach(a=>{map[a.name]=a.path;map['assets/'+a.name]=a.path;});
+  return html.replace(/src="([^"]+)"/g,(m,s)=>{const k=s.replace(/^\.\//,'');const p=map[k]||map[s];return p?`src="/files/${encodeURI(p)}"`:m;});
+}
+function uploadCtrl(){return `<label class="btn btn-g" for="up">📎 Add photo/file</label><input id="up" type="file" multiple style="display:none">`;}
+function fileB64(f){return new Promise(r=>{const x=new FileReader();x.onload=()=>r(x.result.split(',')[1]);x.readAsDataURL(f);});}
+function wireUpload(ctx){const up=document.getElementById('up');if(!up)return;
+  up.onchange=async()=>{for(const f of up.files){const d=await fileB64(f);await api('/api/upload','POST',{...ctx,name:f.name,data:d});}load();};}
+function showSheet(h){document.getElementById('sheet').innerHTML=h;document.getElementById('ov').classList.remove('hidden');
+  document.getElementById('sheet').querySelectorAll('[data-x]').forEach(b=>b.onclick=close);}
+function close(){document.getElementById('ov').classList.add('hidden');open=null;}
+function reopen(){if(!open)return;
+  if(open.kind==='log')return openLog();
+  if(open.kind==='projects')return openProjects();
+  if(open.kind==='projectdoc')return openProjectDoc(open.pid,open.doc);
+  if(open.kind==='project')return openProject(open.pid);
+  if(open.doc)return openDoc(open.lane,open.id,open.doc);
+  if(open.t)return openTicket(open.lane,open.id,open.t);
+  return openCard(open.lane,open.id);}
+
+function openLog(){api('/api/summary').then(s=>{
+  open={kind:'log'};
+  const days=s.dailyFiles||[], adays=s.agentDays||[];
+  const picker=adays.length>1?`<select class="msel" id="aday" style="margin-bottom:8px">${adays.map((d,i)=>`<option value="${esc(d)}"${i===0?' selected':''}>${esc(d)}</option>`).join('')}</select>`:'';
+  showSheet(`<div class="sheet-h"><div class="sheet-t">📋 Activity log</div><button class="x" data-x>×</button></div>
+   <div class="sheet-b">
+    <div class="label">Agent feed — logs/agent/${adays.length?esc(adays[0]):'…'}.log</div>
+    ${picker}
+    <div id="afeed">${s.agentTail?`<div class="logbox">${esc(s.agentTail)}</div>`:'<div class="empty">No activity logged yet.</div>'}</div>
+    <div class="label">Daily summaries — logs/daily/</div>
+    ${days.length?days.map(d=>`<div class="trow" data-day="${esc(d)}"><span class="tt">📅 ${esc(d)}</span><span class="st st-todo">view</span></div>`).join(''):'<div class="empty">None yet.</div>'}
+   </div>`);
+  document.querySelectorAll('[data-day]').forEach(r=>r.onclick=()=>viewLogFile('logs/daily/'+r.dataset.day+'.md','📅 '+r.dataset.day,true));
+  const ad=document.getElementById('aday');
+  if(ad)ad.onchange=()=>{fetch('/files/logs/agent/'+encodeURIComponent(ad.value)+'.log').then(r=>r.ok?r.text():'').then(t=>{
+    const lines=(t||'').split('\n').filter(l=>l.trim()&&!l.startsWith('#'));
+    document.getElementById('afeed').innerHTML=lines.length?`<div class="logbox">${esc(lines.join('\n'))}</div>`:'<div class="empty">No activity logged that day.</div>';
+    document.querySelector('.sheet-b .label').textContent='Agent feed — logs/agent/'+ad.value+'.log';});};
+});}
+function viewLogFile(path,title,md){fetch('/files/'+path.split('/').map(encodeURIComponent).join('/')).then(r=>r.ok?r.text():'').then(t=>{
+  open={kind:'log'};
+  showSheet(`<div class="sheet-h"><button class="x" id="back">←</button><div class="sheet-t">${esc(title)}</div><button class="x" data-x>×</button></div>
+   <div class="sheet-b">${md?'<div class="md" id="v"></div>':`<div class="logbox">${t&&t.trim()?esc(t.trim()):'(empty)'}</div>`}</div>`);
+  if(md)document.getElementById('v').innerHTML=t&&t.trim()?marked.parse(t):'<span class="empty">Empty.</span>';
+  document.getElementById('back').onclick=openLog;});}
+
+function docsHtml2(docs){
+  if(!docs||!docs.length)return '<div class="empty">No shared docs yet.</div>';
+  return docs.map(d=>`<div class="trow" data-doc2="${esc(d.name)}"><span class="tt">📄 ${esc(d.name)}</span>`+
+    (d.content!=null?'<span class="st st-todo">edit</span>':`<a href="/files/${encodeURI(d.path)}" target="_blank">Open ↗</a>`)+`</div>`).join('');
+}
+function openProjects(){api('/api/projects').then(ps=>{PROJECTS=ps;open={kind:'projects'};
+  showSheet(`<div class="sheet-h"><div class="sheet-t">🎯 Projects</div><button class="x" data-x>×</button></div>
+   <div class="sheet-b">
+    ${ps.length?ps.slice().sort((a,b)=>(a.done?1:0)-(b.done?1:0)).map(p=>{const dn=p.members.filter(m=>m.status==='done').length;
+      return `<div class="trow" data-proj="${esc(p.id)}" style="${p.done?'opacity:.55':''}"><span class="tt">${p.done?'✅':'🎯'} ${esc(projTitle(p))}</span><span class="st ${p.done?'st-done':'st-todo'}">${p.done?'done':dn+'/'+p.members.length+' done'}</span></div>`;}).join('')
+      :'<div class="empty">No projects yet. A project groups several epics/tickets under one goal + shared docs.</div>'}
+    <div style="margin-top:10px"><button class="btn btn-g" id="addproj">+ Project</button></div>
+   </div>`);
+  document.querySelectorAll('[data-proj]').forEach(r=>r.onclick=()=>openProject(r.dataset.proj));
+  document.getElementById('addproj').onclick=()=>askText('New project','Project name').then(n=>{if(n&&n.trim())api('/api/project/create','POST',{name:n.trim()}).then(load).then(()=>openProjects());});
+});}
+function openProject(id){api('/api/projects').then(ps=>{PROJECTS=ps;const p=ps.find(x=>x.id===id);if(!p)return;open={kind:'project',pid:id};
+  const mem=p.members.map(m=>`<div class="trow" data-mlane="${esc(m.lane)}" data-mid="${esc(m.id)}"><span class="tt">${m.type==='epic'?'🗂 ':''}${esc(m.title)}</span><span class="tag">${esc(m.lane)}</span>${m.type==='epic'&&m.progress?`<span class="st st-todo">${m.progress.done}/${m.progress.total}</span>`:statusTag(m.status,m.lane)}</div>`).join('')
+    ||'<div class="empty">Nothing assigned yet. Open a card and pick this project.</div>';
+  showSheet(`<div class="sheet-h"><button class="x" id="back">←</button><div class="sheet-t">${p.done?'✅':'🎯'} ${esc(projTitle(p))}</div><button class="x" data-x>×</button></div>
+   <div class="sheet-b">
+    ${p.done?'<div class="meta"><span class="tag tag-proj">✅ done — hidden from the project picker</span></div>':''}
+    <div style="margin-bottom:12px;display:flex;gap:6px;flex-wrap:wrap"><button class="btn btn-g" id="edit">✏️ Edit goal</button><button class="btn btn-g" id="done">${p.done?'↩ Reopen':'✅ Mark done'}</button><button class="btn btn-danger" id="delproj">🗑 Delete</button></div>
+    <div class="md" id="md"></div>
+    <div class="label">Shared docs</div>${docsHtml2(p.docs)}
+    <div style="margin-top:8px"><button class="btn btn-g" id="adddoc">+ Doc</button></div>
+    <div class="label">Epics & tickets (${p.members.length})</div>${mem}
+    <div style="margin-top:10px;display:flex;gap:6px"><button class="btn btn-g" id="addt">+ Ticket</button><button class="btn btn-g" id="adde">+ Epic</button></div>
+   </div>`);
+  document.getElementById('md').innerHTML=p.goal?marked.parse(p.goal):'<span class="empty">No goal written yet.</span>';
+  document.getElementById('back').onclick=openProjects;
+  document.getElementById('done').onclick=()=>api('/api/project/done','POST',{id,done:!p.done}).then(()=>openProject(id));
+  document.getElementById('delproj').onclick=()=>confirmBox('Delete project?','“'+projTitle(p)+'” will be moved to the trash folder. Its epics/tickets are NOT deleted — they just lose the project tag.','Move to trash').then(ok=>{if(ok)api('/api/project/delete','POST',{id}).then(load).then(openProjects);});
+  const mk=type=>askText('New '+type,type.charAt(0).toUpperCase()+type.slice(1)+' title').then(t=>{if(t&&t.trim())api('/api/create','POST',{type,title:t.trim(),project:id}).then(load).then(()=>openProject(id));});
+  document.getElementById('addt').onclick=()=>mk('ticket');
+  document.getElementById('adde').onclick=()=>mk('epic');
+  document.getElementById('edit').onclick=()=>{const b=document.querySelector('.sheet-b');
+    b.innerHTML=`<textarea id="ta">${esc(p.goal||'')}</textarea><div style="margin-top:12px;display:flex;gap:8px"><button class="btn btn-p" id="save">💾 Save</button><button class="btn btn-g" id="cancel">Cancel</button></div>`;
+    document.getElementById('cancel').onclick=()=>openProject(id);
+    document.getElementById('save').onclick=()=>api('/api/project/save','POST',{id,body:document.getElementById('ta').value}).then(()=>openProject(id));};
+  document.getElementById('adddoc').onclick=()=>askText('New shared doc','Doc name (e.g. spec)').then(n=>{if(n&&n.trim())api('/api/project/adddoc','POST',{id,name:n.trim()}).then(()=>openProject(id));});
+  document.querySelectorAll('[data-doc2]').forEach(r=>r.onclick=()=>openProjectDoc(id,r.dataset.doc2));
+  document.querySelectorAll('[data-mid]').forEach(r=>r.onclick=()=>{open=null;openCard(r.dataset.mlane,r.dataset.mid);});
+});}
+function openProjectDoc(pid,name){api('/api/projects').then(ps=>{const p=ps.find(x=>x.id===pid);if(!p)return;const d=(p.docs||[]).find(x=>x.name===name);if(!d)return;open={kind:'projectdoc',pid,doc:name};
+  if(d.content==null){window.open('/files/'+encodeURI(d.path),'_blank');return openProject(pid);}
+  showSheet(`<div class="sheet-h"><button class="x" id="back">←</button><div class="sheet-t">📄 ${esc(name)}</div><button class="x" data-x>×</button></div>
+   <div class="sheet-b"><div style="margin-bottom:12px"><button class="btn btn-g" id="edit">✏️ Edit</button></div><div class="md" id="md"></div></div>`);
+  document.getElementById('md').innerHTML=d.content?marked.parse(d.content):'<span class="empty">Empty doc.</span>';
+  document.getElementById('back').onclick=()=>openProject(pid);
+  document.getElementById('edit').onclick=()=>{const b=document.querySelector('.sheet-b');
+    b.innerHTML=`<textarea id="ta">${esc(d.content||'')}</textarea><div style="margin-top:12px;display:flex;gap:8px"><button class="btn btn-p" id="save">💾 Save</button><button class="btn btn-g" id="cancel">Cancel</button></div>`;
+    document.getElementById('cancel').onclick=()=>openProjectDoc(pid,name);
+    document.getElementById('save').onclick=()=>api('/api/project/savedoc','POST',{id:pid,name,body:document.getElementById('ta').value}).then(()=>openProjectDoc(pid,name));};
+});}
+
+function artHtml(n){
+  if(!n.artifacts||!n.artifacts.length)return '';
+  const h=n.artifacts.find(a=>a.html);
+  const prev=h?`<iframe class="iframe" src="/files/${encodeURI(h.path)}"></iframe>`:'';
+  return `<div class="label">Artifacts (${n.artifacts.length})</div>${prev}`+
+    n.artifacts.map(a=>`<div class="arow"><span>${a.html?'🌐':a.image?'🖼':'📄'} ${esc(a.name)}</span><a href="/files/${encodeURI(a.path)}" target="_blank">Open ↗</a></div>`).join('');
+}
+function epicArtifacts(c){
+  const all=[];
+  (c.artifacts||[]).forEach(a=>all.push({...a,from:'epic'}));
+  (c.tickets||[]).forEach(t=>(t.artifacts||[]).forEach(a=>all.push({...a,from:t.title})));
+  return all;
+}
+function epicProductHtml(c){
+  const all=epicArtifacts(c);
+  if(!all.length)return '';
+  const htmls=all.filter(a=>a.html);
+  const prev=(c.artifacts||[]).find(a=>a.html)||(htmls.length?htmls[htmls.length-1]:null);
+  return `<div class="label">Current product</div>`+
+    (prev?`<iframe class="iframe" src="/files/${encodeURI(prev.path)}"></iframe><div class="ptext" style="margin:4px 0 10px">showing latest: ${esc(prev.from)} · ${esc(prev.name)}</div>`:'')+
+    all.map(a=>`<div class="arow"><span>${a.html?'🌐':a.image?'🖼':'📄'} ${esc(a.from)}: ${esc(a.name)}</span><a href="/files/${encodeURI(a.path)}" target="_blank">Open ↗</a></div>`).join('');
+}
+function fileIcon(a){
+  if(a.image)return '🖼';
+  const e=(a.ext||'').toLowerCase();
+  if(e==='pdf')return '📕';
+  if(['md','txt','rtf'].includes(e))return '📝';
+  if(['json','csv','xml','yml','yaml'].includes(e))return '🗂';
+  if(['zip','tar','gz','rar','7z'].includes(e))return '🗜';
+  if(['html','htm'].includes(e))return '🌐';
+  if(['mp4','mov','webm','avi'].includes(e))return '🎬';
+  if(['mp3','wav','ogg','m4a'].includes(e))return '🎵';
+  return '📄';
+}
+function assetHtml(n){if(!n.assets||!n.assets.length)return '';
+  const rows=n.assets.map(a=>{
+    // Inline image thumbnail only when the file is small enough; otherwise show an icon.
+    const thumb=(a.image && (a.size||0)<=3145728)
+      ? `<span class="thumb"><img src="/files/${encodeURI(a.path)}" loading="lazy"></span>`
+      : `<span class="thumb">${fileIcon(a)}</span>`;
+    const sub=[(a.ext||'file').toUpperCase(),fmtSize(a.size)].filter(Boolean).join(' · ');
+    return `<div class="fileitem" data-file="${esc(a.path)}" data-fname="${esc(a.name)}">
+      ${thumb}<div class="fmeta"><div class="fname">${esc(a.name)}</div><div class="fsub">${esc(sub)}</div></div>
+      <span class="fopen">${PREVIEWABLE.test(a.name)?'Preview':'Open ↗'}</span></div>`;
+  }).join('');
+  return `<div class="label">Files (${n.assets.length})</div><div class="filelist">${rows}</div>`;
+}
+function wireAssets(){
+  document.querySelectorAll('#sheet .fileitem').forEach(el=>el.onclick=()=>previewFile(el.dataset.file,el.dataset.fname));
+}
+function sysSummary(s){if(!s)return '';const b=s.board||{};
+  const lanes=Object.keys(b).map(k=>k+':'+b[k]).join('  ');
+  const extra=[(s.artifacts||[]).length?`${s.artifacts.length} artifact(s)`:'',(s.files||[]).length?`${s.files.length} file(s)`:'',s.status?('status '+s.status):''].filter(Boolean).join(' · ');
+  return [lanes,extra].filter(Boolean).join('  |  ');}
+// Review section: round history + a comment box that records feedback and moves the card.
+// Shown for top-level cards in the Test & Review lane, or any card that already has rounds.
+function reviewSection(n,ctx){
+  const rounds=n.reviews||[];
+  if(ctx.lane!=='review' && !rounds.length)return '';
+  const hist=rounds.length?rounds.map(r=>`<div class="round">
+      <div class="round-h">Round ${r.round} · ${esc((r.at||'').replace('T',' '))} · → ${esc(r.to)}</div>
+      <div class="round-c ${r.comment?'':'empty'}">${r.comment?esc(r.comment):'(no comment)'}</div>
+      <div class="round-sys">${esc(sysSummary(r.system))}</div>
+    </div>`).join(''):'<div class="empty">No review rounds yet — leave feedback and send it back, or approve to Done.</div>';
+  const btns=ctx.ticketId
+    ? `<button class="btn btn-g" data-rto="">💬 Save note</button>`
+    : `<button class="btn btn-g" data-rto="ready">↩ Back to Ready</button>
+       <button class="btn btn-g" data-rto="planning">↩ Back to Planning</button>
+       <button class="btn btn-p" data-rto="done">✓ Approve → Done</button>`;
+  return `<div class="label">Review &amp; feedback (${rounds.length} round${rounds.length===1?'':'s'})</div>
+    <div class="rounds">${hist}</div>
+    <textarea id="rcomment" class="rcomment" placeholder="What should be modified or fixed? (optional — saved as this round's comment)"></textarea>
+    <div class="rbtns">${btns}</div>`;
+}
+function wireReview(ctx){
+  document.querySelectorAll('#sheet [data-rto]').forEach(b=>b.onclick=()=>{
+    const to=b.dataset.rto||undefined;
+    const comment=(document.getElementById('rcomment')||{}).value||'';
+    api('/api/review','POST',{...ctx,comment,to}).then(()=>{
+      if(ctx.ticketId)load(); else {close();load();}
+    });
+  });
+}
+function moveBar(lane,id){
+  return `<div class="movebar"><select class="msel" id="msel"><option value="">⇄ Move to lane…</option>`+
+    BOARD.lanes.filter(l=>l.id!==lane).map(l=>`<option value="${esc(l.id)}">${esc(l.name)}</option>`).join('')+
+    `</select></div>`;
+}
+
+function openCard(lane,id){
+  const c=find(lane,id);if(!c)return;
+  if(c.type==='epic')return openEpic(lane,id);
+  open={lane,id};
+  const ln=BOARD.lanes.find(l=>l.id===lane);
+  showSheet(`<div class="sheet-h"><div class="sheet-t">${esc(c.title)}</div><button class="x" data-x>×</button></div>
+   <div class="sheet-b">
+    <div class="meta"><span class="tag" style="background:${lcolor(ln)};color:#fff">${esc(ln.name)}</span>${targetTag(c)}${statusTag(c.status,lane)}${c.paused?'<span class="tag tag-pause">⏸ paused</span>':''}</div>
+    ${moveBar(lane,id)}
+    ${projectSelect(c,{lane,id})}
+    <div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap"><button class="btn btn-g" id="edit">✏️ Edit</button>${uploadCtrl()}<button class="btn btn-danger" id="del">🗑 Delete</button></div>
+    <div class="md" id="md"></div>${artHtml(c)}${assetHtml(c)}
+    ${reviewSection(c,{lane,id})}
+    <div class="label">Activity log</div><div id="log"></div>
+   </div>`);
+  document.getElementById('md').innerHTML=c.content?renderMd(c):'<span class="empty">No description.</span>';
+  fillLog(c.log);
+  wireActions({lane,id});
+  wireUpload({lane,id});
+  wireProject();
+  wireAssets();
+  wireReview({lane,id});
+  document.getElementById('edit').onclick=()=>editBody({lane,id},c.content,()=>openCard(lane,id));
+  document.getElementById('del').onclick=()=>confirmBox('Delete ticket?','“'+(c.title||id)+'” will be moved to the trash folder (not permanently removed).','Move to trash').then(ok=>{if(ok)api('/api/delete','POST',{lane,id}).then(()=>{close();load();});});
+}
+function openEpic(lane,id){
+  const c=find(lane,id);if(!c)return;open={lane,id,kind:'epic'};
+  const ln=BOARD.lanes.find(l=>l.id===lane);const p=c.progress||{done:0,total:0};const pct=p.total?Math.round(p.done/p.total*100):0;
+  showSheet(`<div class="sheet-h"><div class="sheet-t">🗂 ${esc(c.title)}</div><button class="x" data-x>×</button></div>
+   <div class="sheet-b">
+    <div class="meta"><span class="tag" style="background:${lcolor(ln)};color:#fff">${esc(ln.name)}</span>${targetTag(c)}${c.paused?'<span class="tag tag-pause">⏸ paused</span>':''}</div>
+    <div class="pbar"><div class="pfill" style="width:${pct}%"></div></div><div class="ptext" style="margin-bottom:12px">${p.done}/${p.total} tickets · ${c.parallel?'parallel':'sequential'}</div>
+    ${moveBar(lane,id)}
+    ${projectSelect(c,{lane,id})}
+    <div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap"><button class="btn btn-g" id="edit">✏️ Edit</button><button class="btn btn-g" id="pause">${c.paused?'▶ Unpause':'⏸ Pause'}</button>${uploadCtrl()}<button class="btn btn-danger" id="del">🗑 Delete</button></div>
+    <div class="md" id="md"></div>${epicProductHtml(c)}${assetHtml(c)}
+    <div class="label">Shared docs</div>${docsHtml(c)}
+    <div style="margin-top:8px"><button class="btn btn-g" id="adddoc">+ Doc</button></div>
+    <div class="label">Tickets (${p.total})</div>
+    ${(c.tickets||[]).map(t=>`<div class="trow" data-t="${esc(t.id)}"><span class="tt">${esc(t.title)}</span>${t.paused?'<span class="tag tag-pause">⏸</span>':''}<span class="st st-${esc(t.status)}">${esc(t.status)}</span></div>`).join('')||'<div class="empty">No tickets.</div>'}
+    ${reviewSection(c,{lane,id})}
+    <div class="label">Epic log</div><div id="log"></div>
+   </div>`);
+  document.getElementById('md').innerHTML=c.content?renderMd(c):'<span class="empty">No description.</span>';
+  fillLog(c.log);
+  wireActions({lane,id});
+  wireUpload({lane,id});
+  wireProject();
+  wireAssets();
+  wireReview({lane,id});
+  document.getElementById('edit').onclick=()=>editBody({lane,id},c.content,()=>openEpic(lane,id));
+  document.getElementById('del').onclick=()=>confirmBox('Delete epic?','“'+(c.title||id)+'” and its '+p.total+' ticket(s) will be moved to the trash folder (not permanently removed).','Move to trash').then(ok=>{if(ok)api('/api/delete','POST',{lane,id}).then(()=>{close();load();});});
+  document.querySelectorAll('[data-t]').forEach(r=>r.onclick=()=>openTicket(lane,id,r.dataset.t));
+  document.querySelectorAll('[data-doc]').forEach(r=>r.onclick=()=>openDoc(lane,id,r.dataset.doc));
+  document.getElementById('adddoc').onclick=()=>askText('New shared doc','Doc name (e.g. spec)').then(n=>{
+    if(n&&n.trim())api('/api/adddoc','POST',{lane,id,name:n.trim()}).then(()=>load());});
+}
+function docsHtml(n){
+  if(!n.docs||!n.docs.length)return '<div class="empty">No shared docs yet — “+ Doc” to add info shared by all tickets.</div>';
+  return n.docs.map(d=>`<div class="trow" data-doc="${esc(d.name)}"><span class="tt">📄 ${esc(d.name)}</span>`+
+    (d.content!=null?'<span class="st st-todo">edit</span>':`<a href="/files/${encodeURI(d.path)}" target="_blank">Open ↗</a>`)+`</div>`).join('');
+}
+function openDoc(lane,id,name){
+  const c=find(lane,id);const d=(c.docs||[]).find(x=>x.name===name);if(!d)return;open={lane,id,doc:name};
+  if(d.content==null){window.open('/files/'+encodeURI(d.path),'_blank');return;}
+  showSheet(`<div class="sheet-h"><button class="x" id="back">←</button><div class="sheet-t">📄 ${esc(name)}</div><button class="x" data-x>×</button></div>
+   <div class="sheet-b"><div style="margin-bottom:12px"><button class="btn btn-g" id="edit">✏️ Edit</button></div><div class="md" id="md"></div></div>`);
+  document.getElementById('md').innerHTML=d.content?marked.parse(d.content):'<span class="empty">Empty doc.</span>';
+  document.getElementById('back').onclick=()=>openEpic(lane,id);
+  document.getElementById('edit').onclick=()=>{
+    const b=document.querySelector('.sheet-b');
+    b.innerHTML=`<textarea id="ta">${esc(d.content||'')}</textarea><div style="margin-top:12px;display:flex;gap:8px"><button class="btn btn-p" id="save">💾 Save</button><button class="btn btn-g" id="cancel">Cancel</button></div>`;
+    document.getElementById('cancel').onclick=()=>openDoc(lane,id,name);
+    document.getElementById('save').onclick=()=>api('/api/save','POST',{lane,id,docfile:name,body:document.getElementById('ta').value}).then(load).then(()=>openDoc(lane,id,name));
+  };
+}
+function openTicket(lane,id,tid){
+  const c=find(lane,id);const t=(c.tickets||[]).find(x=>x.id===tid);if(!t)return;open={lane,id,t:tid};
+  showSheet(`<div class="sheet-h"><button class="x" id="back">←</button><div class="sheet-t">${esc(t.title)}</div><button class="x" data-x>×</button></div>
+   <div class="sheet-b">
+    <div class="meta">${targetTag(t)}${statusTag(t.status)}${t.paused?'<span class="tag tag-pause">⏸ paused</span>':''}</div>
+    <div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap"><button class="btn btn-g" id="edit">✏️ Edit</button>${uploadCtrl()}<button class="btn btn-danger" id="del">🗑 Delete</button></div>
+    <div class="md" id="md"></div>${artHtml(t)}${assetHtml(t)}
+    ${reviewSection(t,{lane,id,ticketId:tid})}
+    <div class="label">Activity log</div><div id="log"></div>
+   </div>`);
+  document.getElementById('md').innerHTML=t.content?renderMd(t):'<span class="empty">No description.</span>';
+  fillLog(t.log);
+  wireUpload({lane,id,ticketId:tid});
+  wireAssets();
+  wireReview({lane,id,ticketId:tid});
+  document.getElementById('back').onclick=()=>openEpic(lane,id);
+  document.getElementById('edit').onclick=()=>editBody({lane,id,ticketId:tid},t.content,()=>openTicket(lane,id,tid));
+  document.getElementById('del').onclick=()=>confirmBox('Delete ticket?','“'+(t.title||tid)+'” will be moved to the trash folder (not permanently removed).','Move to trash').then(ok=>{if(ok)api('/api/delete','POST',{lane,id,ticketId:tid}).then(()=>load()).then(()=>openEpic(lane,id));});
+}
+function wireActions(ctx){
+  const ms=document.getElementById('msel');
+  if(ms)ms.onchange=()=>{if(ms.value){const to=ms.value;api('/api/move','POST',{id:ctx.id,from:ctx.lane,to}).then(()=>{open={lane:to,id:ctx.id};load();});}};
+  const pz=document.getElementById('pause');if(pz)pz.onclick=()=>api('/api/pause','POST',{lane:ctx.lane,id:ctx.id}).then(load);
+}
+function fillLog(text){
+  document.getElementById('log').innerHTML=text&&text.trim()?`<div class="logbox">${esc(text.trim())}</div>`:'<div class="empty">No activity yet.</div>';}
+function editBody(ctx,content,after){
+  const b=document.getElementById('sheet').querySelector('.sheet-b');
+  b.innerHTML=`<textarea id="ta">${esc(content||'')}</textarea>
+   <div style="margin-top:12px;display:flex;gap:8px"><button class="btn btn-p" id="save">💾 Save</button><button class="btn btn-g" id="cancel">Cancel</button></div>`;
+  document.getElementById('cancel').onclick=after;
+  document.getElementById('save').onclick=()=>api('/api/save','POST',{...ctx,body:document.getElementById('ta').value}).then(load).then(after);
+}
+document.getElementById('sum').onclick=openLog;
+document.getElementById('proj').onclick=openProjects;
+document.getElementById('ov').onclick=e=>{if(e.target.id==='ov')close();};
+document.getElementById('add-t').onclick=()=>askText('New ticket','Ticket title').then(t=>{if(t&&t.trim())api('/api/create','POST',{type:'ticket',title:t.trim()}).then(load);});
+document.getElementById('add-e').onclick=()=>askText('New epic','Epic title').then(t=>{if(t&&t.trim())api('/api/create','POST',{type:'epic',title:t.trim()}).then(load);});
+load();poll=setInterval(()=>{if(!dragId&&!reviewBulk&&document.getElementById('ov').classList.contains('hidden'))load();},4000);
+</script>
+</body></html>

@@ -1,0 +1,7 @@
+# built binary (produced by `go build`)
+/cboard
+/cboard.exe
+# cross-compiled artifacts
+/dist/
+# a local board folder, if someone runs `cboard init ./cboard` here
+/board/
