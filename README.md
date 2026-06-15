@@ -5,26 +5,50 @@ A local, filesystem-backed kanban board in a **single, dependency-free binary**.
 no Node, no runtime to install. The board is just folders and JSON on disk, so it's easy to
 read, diff, and back up.
 
+It opens **three doors onto the same board**, all sharing one core:
+
+- **Dashboard** — a browser UI for humans (`http://localhost:8787/`)
+- **MCP** — typed tools for Claude and any MCP client (`http://localhost:8787/mcp`)
+- **CLI** — subcommands for scripts and cron
+
 This is a Go rewrite of an earlier Python version: the dashboard HTML/CSS/JS is carried over
 unchanged, and the on-disk format is identical, so existing boards keep working.
 
 ## Install
 
 ```sh
-go build -o cboard .          # current OS
-# cross-compile, e.g. for a Mac from Linux:
-GOOS=darwin GOARCH=arm64 go build -o cboard-mac .
+# devs / Go users:
+go install github.com/iPhoneHungry/cboard@latest
+
+# everyone else: grab the binary for your OS from the Releases page, then:
+chmod +x cboard-* && mv cboard-* /usr/local/bin/cboard
 ```
+
+…or build from a clone: `go build -o cboard .`
 
 ## Quick start
 
 ```sh
-cboard init ~/my-board        # seed an empty board and make it the active one
-cboard serve                  # open the dashboard at http://localhost:8787/
+cboard            # just run it — serves the dashboard + MCP, auto-creating a board
 ```
 
-`init` records the board in `~/.cboard.json`, so `serve` and the authoring commands find it
-without a path. Pass `--root <dir>` (or a positional folder to `serve`) to target another board.
+With no board configured yet, the first run creates one at `~/.cboard/board` and marks it
+active, so you never have to think about where the folders are. Every door (dashboard, MCP,
+CLI) then finds that board from any directory. Want it elsewhere? `cboard init ~/my-board`
+once, or pass `--root <dir>` / a folder argument to `serve`.
+
+## Connecting Claude (MCP)
+
+The dashboard process also serves MCP, so one running `cboard` covers both the browser and
+agents. Point Claude Code at it once:
+
+```sh
+claude mcp add --transport http cboard http://localhost:8787/mcp
+```
+
+…or drop the included [`.mcp.json`](.mcp.json) into a project so Claude offers to connect
+automatically. Tools exposed: `board_snapshot`, `list_cards`, `create_ticket`, `create_epic`,
+`create_project`, `move_card`, `add_review`, `log_progress`, `doctor`.
 
 ## Commands
 

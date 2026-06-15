@@ -178,6 +178,8 @@ func orDefault(v, def string) string {
 
 func serve(host string, port int) error {
 	mux := http.NewServeMux()
+	// MCP endpoint for agents (more specific than "/", so it wins).
+	mux.HandleFunc("/mcp", handleMCP)
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case http.MethodGet:
@@ -190,9 +192,10 @@ func serve(host string, port int) error {
 	})
 	addr := fmt.Sprintf("%s:%d", host, port)
 	fmt.Printf("cboard serving %s\n", root)
-	fmt.Printf("  local:    http://localhost:%d/\n", port)
+	fmt.Printf("  dashboard:  http://localhost:%d/\n", port)
+	fmt.Printf("  mcp:        http://localhost:%d/mcp   (claude mcp add --transport http cboard http://localhost:%d/mcp)\n", port, port)
 	if host == "0.0.0.0" {
-		fmt.Printf("  network:  http://<this-machine-ip>:%d/  (no auth — trusted networks only)\n", port)
+		fmt.Printf("  network:    http://<this-machine-ip>:%d/  (no auth — trusted networks only)\n", port)
 	}
 	return http.ListenAndServe(addr, mux)
 }

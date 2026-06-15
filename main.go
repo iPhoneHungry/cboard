@@ -10,7 +10,10 @@ import (
 	"strings"
 )
 
-const usage = `cboard — local filesystem kanban (dashboard + worker CLI), one binary.
+// version is reported in MCP serverInfo and `cboard version`.
+const version = "0.3.0"
+
+const usage = `cboard — local filesystem kanban (dashboard + MCP + worker CLI), one binary.
 
 Usage:
   cboard init [board]                      seed a board folder and make it active
@@ -23,14 +26,20 @@ Usage:
   cboard log <action> <id> [--ticket T] [--summary S]
   cboard doctor [--apply]                  check (and optionally repair) the board
   cboard config get | set <path>           show / set the active board
-  cboard mcp                               (planned) expose the board as MCP tools
+  cboard version                           print the version
 
-Most commands accept --root BOARD; without it they use the active board (cboard init / config set).`
+Run with no arguments to just serve. The dashboard also exposes MCP at /mcp, so agents
+and the browser share one process. Without --root, commands use the active board (set by
+cboard init / the first serve); a brand-new user gets one auto-created at ~/.cboard/board.`
 
 func main() {
+	// No args → serve (the common case): make the happy path a single word.
 	if len(os.Args) < 2 {
-		fmt.Fprintln(os.Stderr, usage)
-		os.Exit(2)
+		if err := cmdServe(nil); err != nil {
+			fmt.Fprintln(os.Stderr, "error:", err)
+			os.Exit(1)
+		}
+		return
 	}
 	cmd, args := os.Args[1], os.Args[2:]
 	var err error
@@ -39,6 +48,8 @@ func main() {
 		err = cmdInit(args)
 	case "serve":
 		err = cmdServe(args)
+	case "version", "--version", "-v":
+		fmt.Println("cboard", version)
 	case "ticket", "epic", "project", "move", "list":
 		err = cmdAuthor(cmd, args)
 	case "log":
@@ -106,18 +117,14 @@ func resolveBoard(explicit, rootFlag string, mustExist bool) error {
 		chosen = configGetBoard()
 	}
 	if chosen == "" {
-		if mustExist {
-			return fmt.Errorf("no board set — run `cboard init <dir>` or pass --root <board>")
-		}
-		cwd, _ := os.Getwd()
-		chosen = filepath.Join(cwd, "cboard")
+		chosen = defaultBoardDir()
 	}
 	abs, err := filepath.Abs(expandUser(chosen))
 	if err != nil {
 		return err
 	}
 	if mustExist && !isDir(abs) {
-		return fmt.Errorf("board root not found: %s", abs)
+		return fmt.Errorf("no board found at %s — run `cboard serve` (creates one) or `cboard init <dir>`", abs)
 	}
 	root = abs
 	return nil
@@ -186,29 +193,61 @@ func cmdInit(args []string) error {
 }
 
 func cmdServe(args []string) error {
-	var rootFlag, host string
+	host := "127.0.0.1"
 	port := "8787"
-	host = "127.0.0.1"
+	var rootFlag string
 	pos, err := parseFlags(args,
 		map[string]*string{"root": &rootFlag, "host": &host, "port": &port}, nil)
 	if err != nil {
 		return err
 	}
+	// Board resolution: explicit arg → --root → active config → ~/.cboard/board.
 	explicit := ""
 	if len(pos) > 0 {
 		explicit = pos[0]
 	}
-	if err := resolveBoard(explicit, rootFlag, false); err != nil {
+	chosen := explicit
+	if chosen == "" {
+		chosen = rootFlag
+	}
+	hadConfig := configGetBoard() != ""
+	if chosen == "" {
+		chosen = configGetBoard()
+	}
+	if chosen == "" {
+		chosen = defaultBoardDir()
+	}
+	abs, err := filepath.Abs(expandUser(chosen))
+	if err != nil {
 		return err
 	}
+	root = abs
 	if err := seedBoard(root); err != nil {
 		return err
+	}
+	// Zero-config: if nothing was registered yet, make this board the active one so the
+	// CLI and MCP tools find it from anywhere without a path.
+	if !hadConfig {
+		if saved, err := configSetBoard(root); err == nil {
+			fmt.Printf("Active board set to %s\n", saved)
+		}
 	}
 	p, err := strconv.Atoi(port)
 	if err != nil {
 		return fmt.Errorf("bad --port: %s", port)
 	}
 	return serve(host, p)
+}
+
+// defaultBoardDir is where a brand-new user's board lives when they never ran init:
+// ~/.cboard/board (tidy, hidden, home-dir — works from any directory).
+func defaultBoardDir() string {
+	home, err := os.UserHomeDir()
+	if err != nil || home == "" {
+		cwd, _ := os.Getwd()
+		return filepath.Join(cwd, "cboard")
+	}
+	return filepath.Join(home, ".cboard", "board")
 }
 
 func cmdAuthor(cmd string, args []string) error {
