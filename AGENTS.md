@@ -81,7 +81,10 @@ executor**, not a planner:
    `artifacts/` folder. For an epic, work tickets in order, **each in its own fresh context**;
    you may deliberately pull a done sibling's detail (`get_card(epicId, ticket=…)`) when it
    informs the current one — curated context is fine, accidental carryover is not.
-5. **`set_result(...)`** (add `ticket` for an epic sub-ticket), then
+5. **`set_result(...)`** (add `ticket` for an epic sub-ticket) — this is your message to the
+   human; it shows as a panel on the card. If **blocked**, the `summary` must say *why* (it
+   renders as a red callout); if **done**, summarize what you built and put **how to test /
+   run it** in `notes`, with `files_changed` listed. Then
    `log_progress("completed"|"blocked", id, summary)`.
 6. **Move to the terminal lane** — `review` when done/needs-review, `blocked` if blocked.
    An epic goes to `review` only when **all** tickets are done. **Never move a card to

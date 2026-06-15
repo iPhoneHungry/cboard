@@ -63,6 +63,14 @@ header{position:sticky;top:0;z-index:5;background:#fff;border-bottom:1px solid v
 .movebar{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;}
 .msel{width:100%;font-family:inherit;font-weight:700;font-size:14px;padding:9px 12px;border:2px solid var(--border);border-radius:18px;background:#fff;color:var(--text);}
 .logbox{background:#1a1d23;color:#abb2bf;padding:11px 13px;border-radius:8px;font-family:monospace;font-size:12px;white-space:pre-wrap;max-height:220px;overflow-y:auto;}
+.result{border:1px solid var(--border);border-left:4px solid #22c55e;border-radius:8px;padding:10px 12px;margin-bottom:14px;background:#f3fdf7;}
+.result.blocked{border-left-color:#ef4444;background:#fff5f5;}
+.result-h{font-weight:800;font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:#276749;}
+.result.blocked .result-h{color:#c53030;}
+.result-s{font-size:14px;line-height:1.5;margin-top:4px;}
+.result-l{font-size:12.5px;margin-top:7px;}
+.result-l b{font-weight:800;color:var(--muted);text-transform:uppercase;font-size:10.5px;letter-spacing:.4px;}
+.result-l ul{margin:3px 0 0 18px;}.result-l code{background:var(--bg);padding:1px 5px;border-radius:4px;font-size:12px;}
 .empty{color:var(--muted);font-style:italic;font-size:13px;}
 textarea{width:100%;min-height:220px;font-family:monospace;font-size:13px;padding:11px;border:2px solid var(--primary);border-radius:8px;resize:vertical;}
 /* Themed prompt modal (replaces native prompt()) */
@@ -494,6 +502,21 @@ function openProjectDoc(pid,name){api('/api/projects').then(ps=>{const p=ps.find
     document.getElementById('save').onclick=()=>api('/api/project/savedoc','POST',{id:pid,name,body:document.getElementById('ta').value}).then(()=>openProjectDoc(pid,name));};
 });}
 
+// The worker's report for a card (from result.json): summary, notes, files changed. Shown
+// as a prominent panel — red when blocked, so "why is this stuck?" is obvious at a glance.
+function resultHtml(n){
+  const r=n.result||{};
+  const notes=(r.notes||[]).filter(Boolean);
+  const files=(r.files_changed||[]).filter(Boolean);
+  if(!r.summary&&!notes.length&&!files.length)return '';
+  const blocked=n.status==='blocked'||r.status==='blocked';
+  return `<div class="result ${blocked?'blocked':''}">
+    <div class="result-h">${blocked?'⛔ Blocked by the worker':'🛠 Worker result'}</div>
+    ${r.summary?`<div class="result-s">${esc(r.summary)}</div>`:''}
+    ${notes.length?`<div class="result-l"><b>${blocked?'Why / notes':'Notes'}</b><ul>${notes.map(x=>`<li>${esc(x)}</li>`).join('')}</ul></div>`:''}
+    ${files.length?`<div class="result-l"><b>Files changed</b><ul>${files.map(x=>`<li><code>${esc(x)}</code></li>`).join('')}</ul></div>`:''}
+  </div>`;
+}
 function artHtml(n){
   if(!n.artifacts||!n.artifacts.length)return '';
   const h=n.artifacts.find(a=>a.html);
@@ -659,6 +682,7 @@ function openCard(lane,id){
   showSheet(`<div class="sheet-h"><div class="sheet-t">${esc(c.title)}</div><button class="x" data-x>×</button></div>
    <div class="sheet-b">
     <div class="meta"><span class="tag" style="background:${lcolor(ln)};color:#fff">${esc(ln.name)}</span>${targetTag(c)}${statusTag(c.status,lane)}${c.paused?'<span class="tag tag-pause">⏸ paused</span>':''}</div>
+    ${resultHtml(c)}
     ${moveBar(lane,id)}
     ${projectSelect(c,{lane,id})}
     <div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap"><button class="btn btn-g" id="edit">✏️ Edit</button>${uploadCtrl()}<button class="btn btn-g" id="arch">📥 Archive</button><button class="btn btn-danger" id="del">🗑 Delete</button></div>
@@ -683,6 +707,7 @@ function openEpic(lane,id){
   showSheet(`<div class="sheet-h"><div class="sheet-t">🗂 ${esc(c.title)}</div><button class="x" data-x>×</button></div>
    <div class="sheet-b">
     <div class="meta"><span class="tag" style="background:${lcolor(ln)};color:#fff">${esc(ln.name)}</span>${targetTag(c)}${c.paused?'<span class="tag tag-pause">⏸ paused</span>':''}</div>
+    ${resultHtml(c)}
     <div class="pbar"><div class="pfill" style="width:${pct}%"></div></div><div class="ptext" style="margin-bottom:12px">${p.done}/${p.total} tickets · ${c.parallel?'parallel':'sequential'}</div>
     ${moveBar(lane,id)}
     ${projectSelect(c,{lane,id})}
@@ -736,6 +761,7 @@ function openTicket(lane,id,tid){
   showSheet(`<div class="sheet-h"><button class="x" id="back">←</button><div class="sheet-t">${esc(t.title)}</div><button class="x" data-x>×</button></div>
    <div class="sheet-b">
     <div class="meta">${targetTag(t)}${statusTag(t.status)}${t.paused?'<span class="tag tag-pause">⏸ paused</span>':''}</div>
+    ${resultHtml(t)}
     <div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap"><button class="btn btn-g" id="edit">✏️ Edit</button>${uploadCtrl()}<button class="btn btn-g" id="arch">📥 Archive</button><button class="btn btn-danger" id="del">🗑 Delete</button></div>
     <div class="md" id="md"></div>${artHtml(t)}${assetHtml(t)}
     ${reviewSection(t,{lane,id,ticketId:tid})}

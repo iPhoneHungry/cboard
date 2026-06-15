@@ -42,8 +42,15 @@ is whatever that server is serving — you don't need a path.
    - `repo` is empty → the deliverable is self-contained; write it into the card's
      `artifacts/` folder.
    The sub-agent returns `{status, summary, notes, files_changed}`.
-5. **Record.** `set_result(id, status, summary, notes, files_changed)` (add `ticket` for an
-   epic sub-ticket). Then `log_progress("completed"|"blocked", id, summary)`.
+5. **Record — this is how you talk to the human.** `set_result(id, status, summary, notes,
+   files_changed)` (add `ticket` for an epic sub-ticket). The dashboard shows this as a panel
+   on the card, so write it for a person:
+   - **`status: "blocked"`** → the `summary` **must** say *why* it's blocked, in plain words
+     (it renders as a red callout — make it the first thing they'd want to know). Put
+     specifics/options in `notes`.
+   - **`status: "done"`** → `summary` says what you built; use `notes` for **how to test /
+     how to run it** and any caveats, and list `files_changed` so they know what to look at.
+   Then `log_progress("completed"|"blocked", id, summary)`.
 6. **Move to the terminal lane.**
    - Ticket → `move_card(id, "review")` if done/needs_review, or `"blocked"` if blocked.
    - Epic → process each ticket (step 4) one at a time, **each in its own fresh sub-agent**,

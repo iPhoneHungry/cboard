@@ -219,11 +219,13 @@ func readNode(relDir string) map[string]any {
 	if title == "" {
 		title = strings.ReplaceAll(filepath.Base(relDir), "-", " ")
 	}
+	result, _ := readJSON(mustJoin(relDir, "result.json")).(map[string]any)
+	if result == nil {
+		result = map[string]any{}
+	}
 	status := "todo"
-	if result, ok := readJSON(mustJoin(relDir, "result.json")).(map[string]any); ok {
-		if s, ok := result["status"].(string); ok {
-			status = s
-		}
+	if s, ok := result["status"].(string); ok {
+		status = s
 	}
 	reviews := readJSON(mustJoin(relDir, "reviews.json"))
 	if reviews == nil {
@@ -239,6 +241,7 @@ func readNode(relDir string) map[string]any {
 		"branch":    metaStr(meta, "branch"),
 		"project":   metaStr(meta, "project"),
 		"status":    status,
+		"result":    result,
 		"artifacts": listFiles(filepath.Join(relDir, "artifacts")),
 		"assets":    listFiles(filepath.Join(relDir, "assets")),
 		"log":       readText(mustJoin(relDir, "task.log")),
