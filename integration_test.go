@@ -158,6 +158,19 @@ func TestLifecycleOverHTTPAndMCP(t *testing.T) {
 	}
 }
 
+func TestReorderViaAPI(t *testing.T) {
+	c := newClient(t)
+	var ids []string
+	for _, name := range []string{"A", "B", "C"} {
+		ids = append(ids, c.api("/api/create", map[string]any{"type": "ticket", "title": name})["id"].(string))
+	}
+	// reorder planning to creation order A, B, C
+	c.api("/api/reorder", map[string]any{"lane": "planning", "ids": []string{ids[0], ids[1], ids[2]}})
+	if got := c.lane("planning"); len(got) != 3 || got[0] != ids[0] || got[2] != ids[2] {
+		t.Errorf("reorder via API: got %v, want %v", got, ids)
+	}
+}
+
 func TestMCPHandshakeOverHTTP(t *testing.T) {
 	c := newClient(t)
 	// initialize like a real client

@@ -392,6 +392,17 @@ func updateOrder(laneID string, fn func([]string) []string) error {
 	return writeJSON(p, fn(order))
 }
 
+// reorderLane sets a lane's order to the given ids (the board's visual order is the work
+// order — top of ready is what the worker picks next). Validated against the folders on disk:
+// unknown ids are dropped, and any present-but-omitted card is appended.
+func reorderLane(lane string, ids []string) error {
+	laneDir := mustJoin("kanban", lane)
+	if !isDir(laneDir) {
+		return fmt.Errorf("unknown lane: %s", lane)
+	}
+	return writeJSON(filepath.Join(laneDir, "order.json"), reconcile(ids, subdirs(laneDir)))
+}
+
 func moveCard(cid, from, to string) error {
 	if from == to {
 		return nil

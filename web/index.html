@@ -240,11 +240,13 @@ function render(){
     const cs=BOARD.cards[l.id]||[];
     const bar=bulkBar(l.id,cs);
     const plus=l.id==='planning'?`<button class="btn btn-g bulkbtn" data-newlane="1" style="width:100%">➕ New card</button>`:'';
+    const work=(l.id==='ready'&&cs.length)?`<button class="btn btn-g bulkbtn" data-runworker="1" style="width:100%">▶ Run the worker</button>`:'';
     return `<div class="lane"><div class="lane-h" style="--lc:${lcolor(l)}">
       <span class="lane-n">${esc(l.name)}</span><span class="lane-c">${cs.length}</span></div>
-      <div class="lane-b" data-lane="${esc(l.id)}">${bar}${plus}${cs.map(c=>cardHtml(c,l.id)).join('')||'<div class="empty" style="padding:6px">—</div>'}</div></div>`;
+      <div class="lane-b" data-lane="${esc(l.id)}">${bar}${plus}${work}${cs.map(c=>cardHtml(c,l.id)).join('')||'<div class="empty" style="padding:6px">—</div>'}</div></div>`;
   }).join('');
   el.querySelectorAll('[data-newlane]').forEach(b=>b.onclick=e=>{e.stopPropagation();openCreateChooser();});
+  el.querySelectorAll('[data-runworker]').forEach(b=>b.onclick=e=>{e.stopPropagation();openRunWorker();});
   el.querySelectorAll('.card').forEach(x=>{
     const lane=x.dataset.lane,id=x.dataset.id;
     if(lane===bulkLane){
@@ -288,11 +290,21 @@ function wireDnD(){
     c.ondragend=()=>{c.classList.remove('dragging');dragId=null;dragFrom=null;document.querySelectorAll('.lane-b.dragover').forEach(z=>z.classList.remove('dragover'));};
   });
   document.querySelectorAll('#board .lane-b').forEach(z=>{
-    z.ondragover=e=>{if(dragId&&z.dataset.lane!==dragFrom){e.preventDefault();e.dataTransfer.dropEffect='move';z.classList.add('dragover');}};
+    // allow dropping in any lane now — across lanes it moves, within a lane it reorders
+    z.ondragover=e=>{if(dragId){e.preventDefault();e.dataTransfer.dropEffect='move';z.classList.add('dragover');}};
     z.ondragleave=()=>z.classList.remove('dragover');
     z.ondrop=e=>{e.preventDefault();z.classList.remove('dragover');
-      const to=z.dataset.lane;if(dragId&&dragFrom&&to&&to!==dragFrom){const id=dragId,from=dragFrom;dragId=null;
-        api('/api/move','POST',{id,from,to}).then(load);}};
+      const to=z.dataset.lane;if(!dragId||!to)return;const id=dragId,from=dragFrom;dragId=null;
+      if(to===from){
+        // reorder within the lane: insert at the drop position (top of ready = next worked)
+        const others=[...z.querySelectorAll('.card')].filter(c=>c.dataset.id!==id);
+        let idx=others.length;
+        for(let i=0;i<others.length;i++){const r=others[i].getBoundingClientRect();if(e.clientY<r.top+r.height/2){idx=i;break;}}
+        const ids=others.map(c=>c.dataset.id);ids.splice(idx,0,id);
+        api('/api/reorder','POST',{lane:to,ids}).then(load);
+      }else{
+        api('/api/move','POST',{id,from,to}).then(load);
+      }};
   });
 }
 function laneIds(){return BOARD.lanes.map(l=>l.id);}
@@ -356,6 +368,7 @@ function reopen(){if(!open)return;
   if(open.kind==='new')return openNewCard(open.opts);
   if(open.kind==='chooser')return openCreateChooser(open.cproject);
   if(open.kind==='newproj')return openNewProject();
+  if(open.kind==='runworker')return openRunWorker();
   if(open.kind==='context')return openContext();
   if(open.kind==='about')return openAbout();
   if(open.kind==='log')return openLog();
@@ -366,6 +379,22 @@ function reopen(){if(!open)return;
   if(open.t)return openTicket(open.lane,open.id,open.t);
   return openCard(open.lane,open.id);}
 
+// How to actually get work done: connect an agent and tell it to run the worker. Shown from
+// the Ready lane, since Ready is the worker's queue (top card goes first).
+function openRunWorker(){open={kind:'runworker'};
+  const url=`http://${location.host}/mcp`;
+  showSheet(`<div class="sheet-h"><div class="sheet-t">▶ Run the worker</div><button class="x" data-x>×</button></div>
+   <div class="sheet-b md">
+    <p>The board is driven by an <strong>MCP-connected agent</strong> (Claude, Codex, …). Connect once:</p>
+    <div class="logbox">claude mcp add --transport http cboard ${esc(url)}</div>
+    <p style="margin-top:10px">Then just tell the agent: <strong>“run the worker”</strong> (or invoke the
+    <code>kanban-worker</code> skill). It drains the <strong>Ready</strong> lane in order — the card on
+    <strong>top goes first</strong> — runs each in its own clean context, and parks finished work in
+    <strong>Test &amp; Review</strong> for you to approve.</p>
+    <p><strong>Reorder Ready by dragging</strong> to change what's worked next. Blocked or sent-back cards
+    come back with the worker's notes attached.</p>
+   </div>`);
+}
 // Board-level standing context: repo locations, test tooling, conventions — shared by every
 // card and handed to agents (via the get_context MCP tool) before any per-card context.
 function openContext(){open={kind:'context'};

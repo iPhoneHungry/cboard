@@ -96,6 +96,9 @@ Cards flow `planning → ready → in_progress → blocked → review → done`.
 human gate**: a worker leaves finished cards there; you approve them to Done or send them back
 with a comment. Run `cboard doctor` if a board ever gets out of sync.
 
+**Ordering is priority.** Drag a card up within a lane to reorder it — the worker takes the
+**top of Ready** first, so that's how you say "do this next." Drag across lanes to move it.
+
 **Archive vs. delete.** Archiving a card takes it off the board but keeps its folder under
 `archive/` — handy for clearing out Done without losing anything. Deleting removes it and its
 files from disk for good. Both work on one card, or in bulk: hit **☑ Select** at the top of

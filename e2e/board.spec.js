@@ -82,6 +82,21 @@ test('planning lane + opens the chooser', async ({ page }) => {
   await close(page);
 });
 
+test('run-worker nudge appears in Ready with the connect command', async ({ page }) => {
+  await page.goto('/');
+  await page.click('#add-new');
+  await page.click('[data-new="ticket"]');
+  await page.fill('#nt-title', 'Workable');
+  await page.click('#nt-go');
+  await page.selectOption('#msel', 'ready');
+  await page.locator('#msel').dispatchEvent('change');
+  await expect(page.locator('.card[data-lane="ready"]', { hasText: 'Workable' })).toBeVisible();
+  await close(page); // the move reopened the card sheet; close it before clicking the board
+  await page.locator('[data-runworker]').click();
+  await expect(page.locator('.sheet-t')).toContainText('Run the worker');
+  await expect(page.locator('#sheet')).toContainText('claude mcp add');
+});
+
 test('board context round-trips through the panel', async ({ page }) => {
   await page.goto('/');
   await page.click('#ctx');

@@ -113,6 +113,24 @@ func TestSaveBodyUpdatesTitleWhenGiven(t *testing.T) {
 	}
 }
 
+func TestReorderLane(t *testing.T) {
+	newTestBoard(t)
+	a, b, cc := readyCard(t, "A"), readyCard(t, "B"), readyCard(t, "C")
+	// reorder ready to put C on top
+	if err := reorderLane("ready", []string{cc, a, b}); err != nil {
+		t.Fatal(err)
+	}
+	if got := toStringSlice(readJSON(mustJoin("kanban", "ready", "order.json"))); !equalSlice(got, []string{cc, a, b}) {
+		t.Fatalf("order = %v, want [%s %s %s]", got, cc, a, b)
+	}
+	// validation: unknown ids dropped, present-but-omitted appended (still 3 cards)
+	reorderLane("ready", []string{cc, "ghost"})
+	got := toStringSlice(readJSON(mustJoin("kanban", "ready", "order.json")))
+	if len(got) != 3 || got[0] != cc || contains(got, "ghost") {
+		t.Errorf("validation failed: %v", got)
+	}
+}
+
 func TestEpicWithTicket(t *testing.T) {
 	newTestBoard(t)
 	eid, _ := createCard("My Epic", "epic", "")

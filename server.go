@@ -86,6 +86,8 @@ func handlePOST(w http.ResponseWriter, r *http.Request) {
 	switch r.URL.Path {
 	case "/api/move":
 		err = moveCard(s("id"), s("from"), s("to"))
+	case "/api/reorder":
+		err = reorderLane(s("lane"), toStringSlice(d["ids"]))
 	case "/api/pause":
 		err = togglePause(s("lane"), s("id"), s("ticketId"))
 	case "/api/save":
