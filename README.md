@@ -17,14 +17,31 @@ system you can actually run at work without making the security team lose their 
 
 ## 30 seconds to a board
 
+Grab the binary for your OS from the **[latest release](https://github.com/iPhoneHungry/cboard/releases/latest)** — no Go, no build.
+
+**macOS** — Apple Silicon (swap in `cboard-darwin-amd64` on Intel):
+
 ```sh
-go install github.com/iPhoneHungry/cboard@latest    # or grab a binary ↓
-cboard
+curl -L -o cboard https://github.com/iPhoneHungry/cboard/releases/latest/download/cboard-darwin-arm64
+chmod +x cboard && ./cboard
 ```
 
-No Go? Download the binary for your OS from the
-[latest release](https://github.com/iPhoneHungry/cboard/releases/latest), make it executable,
-and run `cboard`.
+Downloaded it through the browser instead? Clear Gatekeeper once: `xattr -d com.apple.quarantine cboard`.
+
+**Windows** — PowerShell:
+
+```powershell
+curl.exe -L -o cboard.exe https://github.com/iPhoneHungry/cboard/releases/latest/download/cboard-windows-amd64.exe
+.\cboard.exe
+```
+
+Then point Claude at it (same command on every OS — run it once `cboard` is serving):
+
+```sh
+claude mcp add --transport http cboard http://localhost:8787/mcp
+```
+
+*Linux: grab `cboard-linux-amd64` / `-arm64`, `chmod +x`, run. Prefer Go anywhere? `go install github.com/iPhoneHungry/cboard@latest && cboard`.*
 
 That's the whole setup. `cboard` with no arguments opens the dashboard at
 **http://localhost:8787** and, if you don't have a board yet, creates one at `~/.cboard/board`
