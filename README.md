@@ -55,7 +55,7 @@ your worker.
 ### 2. Add work
 
 Hit **➕ New card** in the dashboard to write tickets — group them into epics and projects when
-one card outgrows a single commit (see [Project → Epic → Ticket](#project--epic--ticket) below).
+one card outgrows a single commit (see [Context levels](#context-levels) below).
 Drag a card up within a lane to set its priority, and into **Ready** to queue it: the top of
 Ready is what the worker picks next.
 
@@ -86,22 +86,31 @@ deterministic bits — what to pick, ordering, logging — live in the binary's 
 worker can't drift no matter which agent runs it. The full worker contract is
 [`AGENTS.md`](AGENTS.md).
 
-## Project → Epic → Ticket
+## Context levels
 
-Three levels, sized to how an agent commits work:
+Four levels, broad → narrow — **Board → Project → Epic → Ticket** — and each one **stacks onto
+the levels below it.** Every level holds the same kind of thing: a body plus shared docs and file
+assets. The result is a cascade, so the work an agent picks up arrives wrapped in exactly the
+context around it.
 
-- **Ticket** — the atom. One focused change, about a branch with a single commit.
-  *Example: "Add a `--port` flag to `cboard serve`."*
+- **Board** — the global standing context, shared by *everything*: where repos live, test tooling
+  ("when I say *test*, use…"), conventions, plus shared docs and files. Set it once in the
+  **Context** panel; every card on the board inherits it.
+- **Project** — context a group of epics shares: *why* you're doing it, where the repo is, which
+  files the agent may read, links. *Example: "Billing rewrite" — the goal, the repo path, the
+  Stripe API docs link, the design doc.*
 - **Epic** — a feature too big for one commit: an ordered, **stacked** set of tickets built and
-  tested together, like a feature branch. *Example: "User auth" → tickets for the schema, the
-  login endpoint, session middleware, and the tests — in order.*
-- **Project** — the standing context a group of epics shares: *why* you're doing it, where the
-  repo is, which files the agent may read, links, conventions. *Example: "Billing rewrite" —
-  the goal, the repo path, the Stripe API docs link, the design doc.*
+  tested together, like a feature branch. Its brief and shared docs reach every ticket under it.
+  *Example: "User auth" → tickets for the schema, the login endpoint, session middleware, and the
+  tests — in order.*
+- **Ticket** — the atom. One focused change, about a branch with a single commit. *Example: "Add
+  a `--port` flag to `cboard serve`."*
 
-You don't have to use all three — a lone ticket is perfectly happy on its own. Reach for an
-epic when one card isn't enough, and a project when several epics share a goal. The payoff:
-each piece of work carries *exactly* the context it needs, nothing more.
+So a ticket buried in an epic in a project is handed **board + project + epic + ticket** context
+when the worker reaches it — global at the top, narrowing to the one thing to do. You don't have
+to use every level: a lone ticket is perfectly happy on its own, riding on just the board context
+above it. Reach for an epic when one card isn't enough, and a project when several epics share a
+goal. The payoff: each piece of work carries *exactly* the context it needs, nothing more.
 
 ## Three doors, one board
 
