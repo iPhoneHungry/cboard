@@ -2,6 +2,7 @@ package main
 
 import (
 	"os"
+	"strings"
 	"testing"
 )
 
@@ -198,6 +199,100 @@ func TestDocsAreReferencesNotInlined(t *testing.T) {
 	if _, ok := card["content"]; !ok {
 		t.Error("card content should still be present")
 	}
+}
+
+// TestNestedWorkContextLayering checks the hand-off for the deepest case — a ticket inside an
+// epic inside a project, with a global board context — and asserts every layer reaches the work
+// unit: global → everyone (get_context), project → its epic (project_context), epic docs → its
+// tickets (the epic detail rides along in next_card), and the ticket itself in full. This is the
+// inheritance contract; the shallower cases (ticket-in-epic, lone ticket+project) are subsets.
+func TestNestedWorkContextLayering(t *testing.T) {
+	newTestBoard(t)
+
+	// Global board context — the broadest layer, shared by everything.
+	if err := saveBoardContext("repos live in ~/code; test with go test"); err != nil {
+		t.Fatal(err)
+	}
+
+	// A project with a goal + a shared doc — should reach its epics.
+	pid, err := createProject("Billing")
+	if err != nil {
+		t.Fatal(err)
+	}
+	saveProject(pid, "# Billing\n\n**Goal:** rewrite billing")
+	if _, err := addProjectDoc(pid, "stripe.md"); err != nil {
+		t.Fatal(err)
+	}
+
+	// An epic in that project, with its own brief + a shared doc — should reach all its tickets.
+	eid, err := createCard("Checkout", "epic", pid)
+	if err != nil {
+		t.Fatal(err)
+	}
+	saveBody("planning", eid, "", "", "the checkout epic brief")
+	if err := saveDoc("planning", eid, "design.md", "# Design\nthe epic design doc"); err != nil {
+		t.Fatal(err)
+	}
+	addEpicTicket(eid, "Schema", "create the schema")
+	moveCard(eid, "planning", "ready")
+
+	res := selectNextCard()
+	card, _ := res["card"].(map[string]any)
+	if card == nil || card["id"] != eid {
+		t.Fatalf("expected epic %q selected, got %#v", eid, res["card"])
+	}
+
+	// 1) global → everyone: the board context is available (it's what get_context returns).
+	if got := readBoardContext(); got != "repos live in ~/code; test with go test" {
+		t.Errorf("global context = %q", got)
+	}
+
+	// 2) project → epic: the epic detail carries its project's goal + doc references.
+	pc, _ := card["project_context"].(map[string]any)
+	if pc == nil {
+		t.Fatal("project did not reach the epic: project_context missing")
+	}
+	if g, _ := pc["goal"].(string); !strings.Contains(g, "rewrite billing") {
+		t.Errorf("project goal not handed to the epic: %q", g)
+	}
+	if !hasDocNamed(asDocs(pc["docs"]), "stripe.md") {
+		t.Errorf("project doc reference not handed to the epic: %#v", pc["docs"])
+	}
+
+	// 3) epic → its items: the epic's own docs/links travel with the work unit.
+	if !hasDocNamed(asDocs(card["docs"]), "design.md") {
+		t.Errorf("epic doc reference missing from the hand-off: %#v", card["docs"])
+	}
+
+	// 4) the unit of work itself — the ticket to do now, body included.
+	if res["next_ticket"] != "001-schema" {
+		t.Errorf("next_ticket = %v, want 001-schema", res["next_ticket"])
+	}
+	nt, _ := res["next_ticket_detail"].(map[string]any)
+	if nt == nil || nt["content"] != "create the schema" {
+		t.Errorf("next_ticket_detail body = %#v", nt)
+	}
+
+	// docs are handed as references (path), never inlined wholesale.
+	for _, d := range append(asDocs(pc["docs"]), asDocs(card["docs"])...) {
+		if _, inlined := d["content"]; inlined {
+			t.Errorf("doc %v should be a reference, not inlined", d["name"])
+		}
+	}
+}
+
+func asDocs(v any) []map[string]any {
+	d, _ := v.([]map[string]any)
+	return d
+}
+
+func hasDocNamed(docs []map[string]any, name string) bool {
+	for _, d := range docs {
+		if d["name"] == name {
+			return true
+		}
+	}
+	return false
 }
 
 // saveBodyKeepDeps rewrites a card's task.md preserving frontmatter but setting depends_on.
