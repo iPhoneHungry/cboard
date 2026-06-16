@@ -4,7 +4,7 @@
 
 cboard is a kanban board that lives in a folder on your machine. One small binary gives you a
 board in your browser *and* an endpoint your coding agent plugs into — so your agent keeps
-breaking work down and grinding through tickets while you plan, drag, and review in a clean UI
+processing tickets while you plan, drag, and review in a clean UI
 instead of squinting at terminal scrollback.
 
 It's for people who want to break work down *past* Jira and "the sprint" — into real tickets,
