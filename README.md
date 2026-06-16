@@ -1,9 +1,9 @@
 # cboard
 
-**Download it, run it, and get out of the terminal — without unplugging your local AI.**
+**A private, local kanban board for your coding agents. Download it, run it, and get out of the terminal.**
 
 cboard is a kanban board that lives in a folder on your machine. One small binary gives you a
-board in your browser *and* an endpoint your local LLM plugs into — so your agent keeps
+board in your browser *and* an endpoint your coding agent plugs into — so your agent keeps
 breaking work down and grinding through tickets while you plan, drag, and review in a clean UI
 instead of squinting at terminal scrollback.
 
