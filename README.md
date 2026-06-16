@@ -2,6 +2,8 @@
 
 **A private, local kanban board for your coding agents. Download it, run it, and get out of the terminal.**
 
+![cboard in action — an agent picks a card from Ready, builds it, and parks the result for review](docs/board_demo_1.gif)
+
 cboard is a kanban board that lives in a folder on your machine. One small binary gives you a
 board in your browser *and* an endpoint your coding agent plugs into — so your agent keeps
 processing tickets while you plan, drag, and review in a clean UI
