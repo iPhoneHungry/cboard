@@ -84,12 +84,14 @@ func handleGET(w http.ResponseWriter, r *http.Request) {
 			errJSON(w, 500, err)
 			return
 		}
-		// Board files are inert data artifacts — never trusted code. `sandbox` (no
-		// allow-scripts) lets the browser still render an uploaded .html/.svg or a PDF for
-		// preview, but with scripting disabled, so a malicious artifact can't run in the
-		// board's origin via the inline iframe OR an "Open ↗" top-level navigation. nosniff
-		// stops the browser from upgrading octet-stream to something executable.
-		w.Header().Set("Content-Security-Policy", "sandbox")
+		// `sandbox allow-scripts` lets an artifact actually run (an interactive HTML/canvas
+		// demo previews live), but — crucially without allow-same-origin — the document loads
+		// in an opaque origin, so its script can't read the board's cookies/storage or call
+		// /api as the board, via the inline iframe OR an "Open ↗" top-level navigation. That
+		// keeps the stored-XSS blast radius at zero while making previews work. (Never add
+		// allow-same-origin alongside allow-scripts — together they let content drop its own
+		// sandbox.) nosniff stops the browser from upgrading octet-stream to something active.
+		w.Header().Set("Content-Security-Policy", "sandbox allow-scripts")
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.Header().Set("Content-Type", ctype)
 		w.Write(data)

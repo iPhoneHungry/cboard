@@ -60,6 +60,9 @@ human gate** — finished work is parked there; a person approves it to Done.
 **Worker support**
 - `next_card` — the next card to work, applying selection deterministically. Returns
   `{card: null}` when nothing is eligible.
+- `save_artifact(id, name, content [, ticket, encoding])` — save the card's deliverable into its
+  `artifacts/` folder (utf-8, or `encoding:"base64"` for binary). This is how you persist output
+  over MCP without filesystem access; the dashboard lists and previews artifacts during review.
 - `set_result(id [, ticket], status, summary, notes, files_changed)` — record a card's outcome.
 - `log_progress(action, id [, ticket, summary])` — append logs + upsert the daily summary.
 
@@ -78,8 +81,11 @@ executor**, not a planner:
 3. **`move_card(id, "in_progress")`**, then `log_progress("picked", id)`.
 4. **Execute in isolation.** Do the work in a **fresh sub-agent / clean context** seeded with
    only this card's brief, so unrelated cards never bleed in. Honor the work target: if the
-   card has a `repo`, work in it on `branch`; otherwise write the deliverable into the card's
-   `artifacts/` folder. For an epic, work tickets in order, **each in its own fresh context**;
+   card has a `repo`, work in it on `branch`; otherwise the deliverable is an artifact — build
+   it, then persist it with **`save_artifact(id, name, content)`** (it lands in the card's
+   `artifacts/` folder and previews on the dashboard). Don't just name a file you didn't save:
+   if it isn't in `artifacts/` (or a `repo`), it won't show up for review. For an epic, work
+   tickets in order, **each in its own fresh context**;
    you may deliberately pull a done sibling's detail (`get_card(epicId, ticket=…)`) when it
    informs the current one — curated context is fine, accidental carryover is not.
 5. **`set_result(...)`** (add `ticket` for an epic sub-ticket) — this is your message to the

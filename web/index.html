@@ -556,11 +556,16 @@ function resultHtml(n){
   const files=(r.files_changed||[]).filter(Boolean);
   if(!r.summary&&!notes.length&&!files.length)return '';
   const blocked=n.status==='blocked'||r.status==='blocked';
+  // Link a "files changed" entry when it matches a saved artifact/asset on the board (by full
+  // path or basename); repo paths that don't live on the board stay as plain text.
+  const onBoard={};(n.artifacts||[]).concat(n.assets||[]).forEach(a=>{onBoard[a.path]=a.path;onBoard[a.name]=a.path;});
+  const fileLi=x=>{const p=onBoard[x]||onBoard[String(x).split('/').pop()];
+    return p?`<li><a href="/files/${encodeURI(p)}" target="_blank"><code>${esc(x)}</code></a></li>`:`<li><code>${esc(x)}</code></li>`;};
   return `<div class="result ${blocked?'blocked':''}">
     <div class="result-h">${blocked?'⛔ Blocked by the worker':'🛠 Worker result'}</div>
     ${r.summary?`<div class="result-s">${esc(r.summary)}</div>`:''}
     ${notes.length?`<div class="result-l"><b>${blocked?'Why / notes':'Notes'}</b><ul>${notes.map(x=>`<li>${esc(x)}</li>`).join('')}</ul></div>`:''}
-    ${files.length?`<div class="result-l"><b>Files changed</b><ul>${files.map(x=>`<li><code>${esc(x)}</code></li>`).join('')}</ul></div>`:''}
+    ${files.length?`<div class="result-l"><b>Files changed</b><ul>${files.map(fileLi).join('')}</ul></div>`:''}
   </div>`;
 }
 function artHtml(n){

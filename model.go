@@ -753,6 +753,25 @@ func addAsset(lane, cid, ticket, name string, raw []byte) (string, error) {
 	return final, nil
 }
 
+// saveArtifact writes a worker deliverable into a card's artifacts/ folder, returning the final
+// filename. Unlike addAsset it does not touch the card body — artifacts are the card's product and
+// are surfaced (and previewed) on their own in the dashboard. Re-saving the same name overwrites,
+// so a worker can revise its deliverable in place. filepath.Base keeps the name from escaping.
+func saveArtifact(lane, cid, ticket, name string, raw []byte) (string, error) {
+	dir := mustJoin(nodeDir(lane, cid, ticket), "artifacts")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return "", err
+	}
+	name = filepath.Base(name)
+	if name == "" || name == "." || name == "/" {
+		name = "artifact"
+	}
+	if err := os.WriteFile(filepath.Join(dir, name), raw, 0o644); err != nil {
+		return "", err
+	}
+	return name, nil
+}
+
 var slugStrip = regexp.MustCompile(`[^a-z0-9\s-]`)
 var slugSpace = regexp.MustCompile(`\s+`)
 var slugDash = regexp.MustCompile(`-+`)

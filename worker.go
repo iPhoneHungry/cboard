@@ -284,6 +284,46 @@ func init() {
 			},
 		},
 		mcpTool{
+			Name:        "save_artifact",
+			Description: "Save a deliverable file into a card's artifacts/ folder — what the card produced (a built HTML page, a generated file, a report). The dashboard lists it and previews HTML/images inline during review. This is how an MCP worker with no filesystem access persists its output: pass utf-8 text in content, or set encoding to base64 for binary. For an epic sub-ticket, pass ticket. Re-saving the same name overwrites. Then list the name in set_result's files_changed.",
+			InputSchema: obj(map[string]any{
+				"id":       strProp("card id (required)"),
+				"ticket":   strProp("epic sub-ticket id"),
+				"name":     strProp("file name, e.g. index.html (required)"),
+				"content":  strProp("file content (required)"),
+				"encoding": strProp("utf-8 (default) or base64 for binary"),
+			}, "id", "name", "content"),
+			handler: func(args map[string]any) (any, error) {
+				id, name := str(args, "id"), str(args, "name")
+				if id == "" || name == "" {
+					return nil, fmt.Errorf("id and name are required")
+				}
+				lane := findLane(id)
+				if lane == "" {
+					return nil, fmt.Errorf("card not found: %s", id)
+				}
+				raw := []byte(str(args, "content"))
+				if str(args, "encoding") == "base64" {
+					b, err := base64.StdEncoding.DecodeString(str(args, "content"))
+					if err != nil {
+						return nil, fmt.Errorf("bad base64 content: %v", err)
+					}
+					raw = b
+				}
+				ticket := str(args, "ticket")
+				fn, err := saveArtifact(lane, id, ticket, name, raw)
+				if err != nil {
+					return nil, err
+				}
+				rel := filepath.Join("kanban", lane, id)
+				if ticket != "" {
+					rel = filepath.Join(rel, "tickets", ticket)
+				}
+				return map[string]any{"ok": true, "name": fn,
+					"path": filepath.ToSlash(filepath.Join(rel, "artifacts", fn))}, nil
+			},
+		},
+		mcpTool{
 			Name:        "set_result",
 			Description: "Write a card's result.json (status one of done|blocked|needs_review, plus summary, notes, files_changed). For an epic sub-ticket, pass ticket. Does not move the card — use move_card for that.",
 			InputSchema: obj(map[string]any{
