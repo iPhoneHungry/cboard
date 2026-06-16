@@ -8,10 +8,13 @@
   p.sub { font-size: 12px; color: #6b7280; margin: 0 0 12px; }
   label { font-size: 12px; font-weight: 600; display: block; margin: 10px 0 4px; }
   input[type=text] { width: 100%; box-sizing: border-box; padding: 7px 9px; border: 1px solid #d1d5db; border-radius: 7px; font-size: 13px; }
-  .row { display: flex; align-items: center; gap: 8px; margin-top: 12px; font-size: 13px; }
-  button { width: 100%; margin-top: 14px; padding: 9px; border: 0; border-radius: 8px; background: #667eea; color: #fff; font-weight: 700; font-size: 13px; cursor: pointer; }
-  button:hover { background: #5468d4; }
-  .hint { font-size: 11px; color: #9ca3af; margin-top: 8px; line-height: 1.4; }
+  button { width: 100%; margin-top: 10px; padding: 9px; border: 0; border-radius: 8px; font-weight: 700; font-size: 13px; cursor: pointer; }
+  .primary { background: #667eea; color: #fff; }
+  .primary:hover { background: #5468d4; }
+  .ghost { background: #eef0f7; color: #2b2d3a; }
+  .ghost:hover { background: #e3e6f2; }
+  .hint { font-size: 11px; color: #9ca3af; margin-top: 10px; line-height: 1.4; }
+  #recstate { display: none; margin-top: 10px; padding: 8px 10px; border-radius: 8px; background: #fdeaf3; color: #b3225f; font-size: 12px; font-weight: 600; line-height: 1.4; }
 </style>
 </head>
 <body>
@@ -21,13 +24,15 @@
   <label for="endpoint">Board endpoint</label>
   <input id="endpoint" type="text" placeholder="http://localhost:8787" autocomplete="off">
 
-  <div class="row">
-    <input id="recording" type="checkbox">
-    <label for="recording" style="margin:0;font-weight:600">Record my clicks as repro steps</label>
+  <button id="capture" class="primary">📸 Capture now</button>
+  <button id="record" class="ghost">⏺ Record steps, then capture</button>
+
+  <div id="recstate">
+    ● Recording — reproduce the issue, then hit <strong>✓ Done</strong> on the page.
+    <button id="stop" class="ghost" style="margin-top:8px">■ Stop recording</button>
   </div>
 
-  <button id="capture">📸 Capture &amp; annotate</button>
-  <div class="hint">Recording keeps logging steps on the pages you visit until you turn it off. The annotated shot is attached to the ticket and previews on the card.</div>
+  <div class="hint">“Record” drops a small bar on the page; click around to capture repro steps, then press Done to grab the shot and open the editor.</div>
 </body>
 <script src="popup.js"></script>
 </html>

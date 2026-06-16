@@ -97,6 +97,16 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
           sendResponse({ ok: true, on: !!recording });
           break;
         }
+        case "finishRecording": {
+          // The on-page Done button: stop recording, let the control bars disappear, then
+          // capture the page the user clicked Done on and open the editor.
+          await chrome.storage.session.set({ recording: false });
+          broadcastRecording(false);
+          await new Promise((r) => setTimeout(r, 80));
+          if (sender.tab) await captureToEditor(sender.tab);
+          sendResponse({ ok: true });
+          break;
+        }
         case "step": {
           const { recording, steps = [] } = await chrome.storage.session.get(["recording", "steps"]);
           if (recording && msg.text) {

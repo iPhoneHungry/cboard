@@ -21,12 +21,17 @@ cboard must be running (`cboard` → `http://localhost:8787`).
 
 ## Use
 
-1. Click the toolbar icon. Set the **board endpoint** if it isn't `http://localhost:8787`.
-   (Optionally tick **Record my clicks** first, then reproduce the issue.)
-2. **Capture & annotate** — grabs the visible tab and opens the editor.
-3. Draw on the shot, fill in a title / description / steps (recorded steps are pre-filled), and
-   **Create ticket**.
-4. The card lands in **planning** with the screenshot attached; open the board to triage it.
+Click the toolbar icon (set the **board endpoint** first if it isn't `http://localhost:8787`).
+Two ways to grab a page:
+
+- **📸 Capture now** — screenshots the visible tab and opens the editor right away.
+- **⏺ Record steps, then capture** — drops a small bar on the page; reproduce the issue (clicks
+  are logged as repro steps), then press **✓ Done** on that bar to grab the shot and open the
+  editor. Hit ✕ (or **Stop** in the popup) to cancel.
+
+In the editor: draw on the shot (box / arrow / text / pen), fill in a title / description / steps
+(recorded steps are pre-filled), and **Create ticket**. The card lands in **planning** with the
+screenshot attached; open the board to triage it.
 
 ## How it connects
 
