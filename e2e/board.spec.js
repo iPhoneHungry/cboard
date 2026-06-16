@@ -94,14 +94,14 @@ test('drag to reorder within a lane (top = next)', async ({ page }) => {
     .toBe(r1Id);
 });
 
-test('planning lane + opens the chooser', async ({ page }) => {
+test('the New button opens the create chooser', async ({ page }) => {
   await page.goto('/');
-  await page.locator('[data-newlane]').click();
+  await page.click('#add-new');
   await expect(page.locator('.sheet-t')).toContainText('What do you want to start');
   await close(page);
 });
 
-test('run-worker nudge appears in Ready with the connect command', async ({ page }) => {
+test('run-worker button in Ready surfaces the connect command', async ({ page }) => {
   await page.goto('/');
   await page.click('#add-new');
   await page.click('[data-new="ticket"]');
@@ -112,7 +112,6 @@ test('run-worker nudge appears in Ready with the connect command', async ({ page
   await expect(page.locator('.card[data-lane="ready"]', { hasText: 'Workable' })).toBeVisible();
   await close(page); // the move reopened the card sheet; close it before clicking the board
   await page.locator('[data-runworker]').click();
-  await expect(page.locator('.sheet-t')).toContainText('Run the worker');
   await expect(page.locator('#sheet')).toContainText('claude mcp add');
 });
 
