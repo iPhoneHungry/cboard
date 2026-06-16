@@ -11,7 +11,7 @@ import (
 )
 
 // version is reported in MCP serverInfo and `cboard version`.
-const version = "0.5.1"
+const version = "0.5.2"
 
 const usage = `cboard — local filesystem kanban (dashboard + MCP + worker CLI), one binary.
 
