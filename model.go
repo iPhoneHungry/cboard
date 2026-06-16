@@ -746,25 +746,10 @@ func addAsset(lane, cid, ticket, name string, raw []byte) (string, error) {
 	if err := os.WriteFile(filepath.Join(assets, final), raw, 0o644); err != nil {
 		return "", err
 	}
-	p := mustJoin(d, "task.md")
-	text := readText(p)
-	if text == "" {
-		text = "---\n---\n"
-	}
-	meta, content := parseFM(text)
-	var ref string
-	if imgRe.MatchString(final) {
-		ref = fmt.Sprintf("![%s](assets/%s)", base, final)
-	} else {
-		ref = fmt.Sprintf("[%s](assets/%s)", final, final)
-	}
-	body := ref
-	if content != "" {
-		body = content + "\n\n" + ref
-	}
-	if err := os.WriteFile(p, []byte(serializeFM(meta)+"\n"+body+"\n"), 0o644); err != nil {
-		return "", err
-	}
+	// The file shows up on its own in the card's Files list (driven by scanning assets/),
+	// so we deliberately do NOT inject a markdown reference into the body — that pushed a
+	// giant inline image and a raw "[name](assets/name)" link (broken for names with spaces)
+	// into the description. Keep the body clean; the Files section is the home for uploads.
 	return final, nil
 }
 
