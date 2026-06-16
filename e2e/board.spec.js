@@ -123,3 +123,23 @@ test('board context round-trips through the panel', async ({ page }) => {
   await page.click('#ctx-save');
   await expect(page.locator('#ctx-md')).toContainText('app: ~/code/app');
 });
+
+test('drag-and-drop a file onto a card attaches it', async ({ page }) => {
+  await page.goto('/');
+  await page.click('#add-new');
+  await page.click('[data-new="ticket"]');
+  await page.fill('#nt-title', 'Droppable');
+  await page.click('#nt-go');
+  await expect(page.locator('.sheet-t')).toContainText('Droppable');
+  // Build a real DataTransfer carrying a file and drop it on the sheet.
+  const dt = await page.evaluateHandle(() => {
+    const dt = new DataTransfer();
+    dt.items.add(new File([new Uint8Array([137, 80, 78, 71])], 'dropped.png', { type: 'image/png' }));
+    return dt;
+  });
+  await page.locator('#sheet').dispatchEvent('dragover', { dataTransfer: dt });
+  await expect(page.locator('#sheet')).toHaveClass(/dropping/);
+  await page.locator('#sheet').dispatchEvent('drop', { dataTransfer: dt });
+  await expect(page.locator('#sheet')).toContainText('dropped.png'); // re-opened card now lists it
+  await close(page);
+});
