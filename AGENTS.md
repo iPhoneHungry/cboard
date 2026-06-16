@@ -1,9 +1,10 @@
 # Working with cboard (for AI agents)
 
-This is the **canonical, tool-agnostic** guide for an AI agent using cboard. Claude Code
-loads the worker half of this as the `kanban-worker` skill; Codex, Cursor, Cline, and other
-AGENTS.md-aware tools read this file directly. cboard itself is reached the same way
-everywhere — over **MCP** — so one set of instructions works across tools.
+This is the **canonical, tool-agnostic** guide for an AI agent using cboard. The board serves
+this same text over MCP as the `kanban-worker` prompt, so a connected client (e.g. Claude Code)
+can load it on demand; Codex, Cursor, Cline, and other AGENTS.md-aware tools read this file
+directly. cboard itself is reached the same way everywhere — over **MCP** — so one set of
+instructions works across tools.
 
 ## What cboard is
 

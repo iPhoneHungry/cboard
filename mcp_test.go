@@ -32,6 +32,40 @@ func TestMCPInitialize(t *testing.T) {
 	if _, ok := m["capabilities"].(map[string]any)["tools"]; !ok {
 		t.Error("missing tools capability")
 	}
+	if _, ok := m["capabilities"].(map[string]any)["prompts"]; !ok {
+		t.Error("missing prompts capability")
+	}
+	if s, _ := m["instructions"].(string); s == "" {
+		t.Error("missing server instructions")
+	}
+}
+
+func TestMCPWorkerPrompt(t *testing.T) {
+	// prompts/list advertises the worker prompt...
+	res, rerr := dispatchMCP("prompts/list", nil)
+	if rerr != nil {
+		t.Fatal(rerr)
+	}
+	prompts := res.(map[string]any)["prompts"].([]map[string]any)
+	if len(prompts) != 1 || prompts[0]["name"] != workerPromptName {
+		t.Fatalf("prompts/list = %#v", prompts)
+	}
+
+	// ...and prompts/get returns the embedded AGENTS.md contract verbatim.
+	res, rerr = dispatchMCP("prompts/get", rawJSON(t, map[string]any{"name": workerPromptName}))
+	if rerr != nil {
+		t.Fatal(rerr)
+	}
+	msgs := res.(map[string]any)["messages"].([]map[string]any)
+	text := msgs[0]["content"].(map[string]any)["text"].(string)
+	if text != workerContract || text == "" {
+		t.Errorf("prompt text did not match embedded AGENTS.md (len %d)", len(text))
+	}
+
+	// an unknown prompt name is a params error, not a silent fallback.
+	if _, rerr := dispatchMCP("prompts/get", rawJSON(t, map[string]any{"name": "nope"})); rerr == nil {
+		t.Error("expected error for unknown prompt name")
+	}
 }
 
 func TestMCPToolsListCoversRegistry(t *testing.T) {

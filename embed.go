@@ -21,3 +21,10 @@ var purifyJS []byte
 //
 //go:embed seed
 var seedFS embed.FS
+
+// workerContract is AGENTS.md, embedded and served over MCP as the `kanban-worker` prompt so a
+// connected agent gets the worker contract from the binary itself — no separate skill or plugin
+// to install, and a single source of truth that ships (and versions) with each release.
+//
+//go:embed AGENTS.md
+var workerContract string

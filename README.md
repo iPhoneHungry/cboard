@@ -50,20 +50,32 @@ one card outgrows a single commit (see [Project → Epic → Ticket](#project--e
 Drag a card up within a lane to set its priority, and into **Ready** to queue it: the top of
 Ready is what the worker picks next.
 
-### 3. Run a worker
+### 3. Connect an agent
 
-Point your agent at the board's MCP endpoint (same command on every OS):
+cboard talks to agents over **MCP** — one endpoint, no plugin, no skill to install. Point any
+MCP client at the board (same command on every OS):
 
 ```sh
 claude mcp add --transport http cboard http://localhost:8787/mcp
 ```
 
-Then run the bundled [`kanban-worker` skill](skills/kanban-worker/SKILL.md): it takes Ready
-cards top-down, runs each in its own clean context, and parks finished work in **Test &
-Review** for you to approve — it never marks things Done on its own, and never invents or
-reorders tasks. Using Codex / Cursor / something else? Point its MCP config at `…/mcp` and let
-it read [`AGENTS.md`](AGENTS.md). Or write your own loop against the tools — the deterministic
-bits (what to pick, logging, ordering) live in the binary so they can't drift.
+Using Codex, Cursor, or something else? Add `http://localhost:8787/mcp` as an HTTP MCP server
+in its config. Either way your agent now has the board's tools — `next_card`, `set_result`,
+`move_card`, and the rest.
+
+Then tell it to work. Paste this to your agent:
+
+> You are my cboard worker. Use the cboard MCP tools to drain the **Ready** lane: call
+> `next_card`, take cards top-down **one at a time**, work each in its own clean context, record
+> the outcome with `set_result`, then `move_card` the finished card to **Test & Review** — never
+> to Done. Don't reorder, invent, or skip cards. Repeat until `next_card` returns nothing, then
+> stop and summarize.
+
+That's the whole loop: it picks the top of Ready, runs each card in isolation, and parks the
+result in **Test & Review** for you to approve — it never marks anything Done on its own. The
+deterministic bits — what to pick, ordering, logging — live in the binary's tools, so the
+worker can't drift no matter which agent runs it. The full worker contract is
+[`AGENTS.md`](AGENTS.md).
 
 ## Project → Epic → Ticket
 

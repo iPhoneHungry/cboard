@@ -113,8 +113,14 @@ textarea{width:100%;min-height:220px;font-family:monospace;font-size:13px;paddin
 .rcomment:focus{border-color:var(--primary);outline:none;}
 .rbtns{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;}
 /* Bulk select (Test & Review lane) */
-.bulkbar{display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:12px;font-weight:800;color:var(--text);margin-bottom:4px;}
 .bulkbtn{margin-bottom:4px;}
+.lane-sel{background:transparent;border:none;color:var(--muted);cursor:pointer;font-size:14px;line-height:1;padding:0 1px;opacity:.45;flex:0 0 auto;}
+.lane-sel:hover{opacity:1;color:var(--primary);}
+.lane-h.selecting{gap:5px;}
+.sel-n{font-weight:800;font-size:12px;color:var(--text);min-width:13px;text-align:center;flex:0 0 auto;}
+.selbtn{background:transparent;border:1.5px solid var(--border);color:var(--muted);border-radius:6px;font-size:12px;font-weight:700;padding:2px 7px;cursor:pointer;font-family:inherit;line-height:1.5;flex:0 0 auto;}
+.selbtn:hover{border-color:var(--primary);color:var(--primary);}
+.selbtn-d:hover{border-color:#f3c4c4;color:#e53e3e;}
 .card.sel{outline:2px solid var(--primary);outline-offset:1px;background:#eef0ff;}
 /* Mobile lane switcher — hidden on desktop */
 .lanenav{display:none;}
@@ -138,6 +144,7 @@ textarea{width:100%;min-height:220px;font-family:monospace;font-size:13px;paddin
   .lane{display:none;min-width:0;max-width:none;width:100%;box-shadow:none;}
   .lane.active{display:block;}
   .lane .lane-h{display:none;} /* lane name lives in the switcher on mobile */
+  .lane.active .lane-h.selecting{display:flex;} /* but the bulk toolbar does show while selecting */
   .lane-b{min-height:55vh;}
 }
 </style></head>
@@ -149,7 +156,7 @@ textarea{width:100%;min-height:220px;font-family:monospace;font-size:13px;paddin
     <button class="btn btn-g" id="proj">🎯 Projects</button>
     <button class="btn btn-g" id="ctx">🧭 Context</button>
     <button class="btn btn-g" id="sum">📋 Log</button>
-    <button class="btn btn-g" id="about">ℹ️ About</button>
+    <button class="btn btn-g" id="about">❓ Help</button>
   </div>
 </header>
 <div id="lanenav" class="lanenav"></div>
@@ -243,15 +250,11 @@ function render(){
   const el=document.getElementById('board');
   el.innerHTML=BOARD.lanes.map(l=>{
     const cs=BOARD.cards[l.id]||[];
-    const bar=bulkBar(l.id,cs);
-    const plus=l.id==='planning'?`<button class="btn btn-g bulkbtn" data-newlane="1" style="width:100%">➕ New card</button>`:'';
     const work=(l.id==='ready'&&cs.length)?`<button class="btn btn-g bulkbtn" data-runworker="1" style="width:100%">▶ Run the worker</button>`:'';
-    return `<div class="lane"><div class="lane-h" style="--lc:${lcolor(l)}">
-      <span class="lane-n">${esc(l.name)}</span><span class="lane-c">${cs.length}</span></div>
-      <div class="lane-b" data-lane="${esc(l.id)}">${bar}${plus}${work}${cs.map(c=>cardHtml(c,l.id)).join('')||'<div class="empty" style="padding:6px">—</div>'}</div></div>`;
+    return `<div class="lane"><div class="lane-h${bulkLane===l.id?' selecting':''}" style="--lc:${lcolor(l)}">${laneHead(l,cs)}</div>
+      <div class="lane-b" data-lane="${esc(l.id)}">${work}${cs.map(c=>cardHtml(c,l.id)).join('')||'<div class="empty" style="padding:6px">—</div>'}</div></div>`;
   }).join('');
-  el.querySelectorAll('[data-newlane]').forEach(b=>b.onclick=e=>{e.stopPropagation();openCreateChooser();});
-  el.querySelectorAll('[data-runworker]').forEach(b=>b.onclick=e=>{e.stopPropagation();openRunWorker();});
+  el.querySelectorAll('[data-runworker]').forEach(b=>b.onclick=e=>{e.stopPropagation();openAbout();});
   el.querySelectorAll('.card').forEach(x=>{
     const lane=x.dataset.lane,id=x.dataset.id;
     if(lane===bulkLane){
@@ -266,15 +269,21 @@ function render(){
   applyMobileLane();
   initBoardSwipe();
 }
-function bulkBar(laneId,cs){
-  if(bulkLane!==laneId)return cs.length?`<button class="btn btn-g bulkbtn" data-bulk="start" data-bl="${esc(laneId)}">☑ Select</button>`:'';
-  const moveDone=laneId==='review'?`<button class="btn btn-p" data-bulk="done">Done →</button>`:'';
-  return `<div class="bulkbar"><span>${bulkSel.size} selected</span>
-    <button class="btn btn-g" data-bulk="all">All</button>
-    ${moveDone}
-    <button class="btn btn-g" data-bulk="archive">📥 Archive</button>
-    <button class="btn btn-danger" data-bulk="delete">🗑 Delete</button>
-    <button class="btn btn-g" data-bulk="cancel">✕</button></div>`;
+// The lane header doubles as the bulk-select toolbar: a small ☑ trigger lives at the far right
+// in normal mode (so it never takes body space or pushes cards down), and the whole header
+// becomes a compact action row while selecting.
+function laneHead(l,cs){
+  if(bulkLane===l.id){
+    const done=l.id==='review'?`<button class="selbtn" data-bulk="done" title="Approve selected to Done">✓ Done</button>`:'';
+    return `<span class="sel-n" title="selected">${bulkSel.size}</span>
+      <button class="selbtn" data-bulk="all" title="Select all">All</button>
+      ${done}
+      <button class="selbtn" data-bulk="archive" title="Archive selected">📥</button>
+      <button class="selbtn selbtn-d" data-bulk="delete" title="Delete selected">🗑</button>
+      <button class="selbtn" data-bulk="cancel" title="Done selecting" style="margin-left:auto">✕</button>`;
+  }
+  const sel=cs.length?`<button class="lane-sel" data-bulk="start" data-bl="${esc(l.id)}" title="Select cards">☑</button>`:'';
+  return `<span class="lane-n">${esc(l.name)}</span><span class="lane-c">${cs.length}</span>${sel}`;
 }
 function wireBulk(){
   document.querySelectorAll('#board [data-bulk]').forEach(b=>b.onclick=async e=>{e.stopPropagation();const a=b.dataset.bulk;
@@ -321,14 +330,18 @@ function renderLaneNav(){
   if(ids.indexOf(mLane)<0)mLane=ids[0];
   const l=BOARD.lanes[activeLaneIdx()];const cs=BOARD.cards[l.id]||[];
   nav.style.setProperty('--lc',lcolor(l));
+  const selTrig=cs.length?`<button class="lanenav-arrow" id="ln-sel" title="${bulkLane===l.id?'Done selecting':'Select cards'}">${bulkLane===l.id?'✕':'☑'}</button>`:'';
   nav.innerHTML=`<div class="lanenav-top">
       <button class="lanenav-arrow" id="ln-prev">‹</button>
       <span class="lanenav-name">${esc(l.name)}</span>
       <span class="lanenav-count">${cs.length}</span>
+      ${selTrig}
       <button class="lanenav-arrow" id="ln-next">›</button></div>
     <div class="lanenav-dots">${ids.map((id,i)=>{const n=(BOARD.cards[id]||[]).length;return `<i class="${i===activeLaneIdx()?'on':''}${n?'':' empty'}" data-i="${i}" style="--dc:${lcolor(BOARD.lanes[i])}" title="${esc(BOARD.lanes[i].name)}">${n}</i>`;}).join('')}</div>`;
   nav.querySelector('#ln-prev').onclick=()=>setMobileLane(activeLaneIdx()-1);
   nav.querySelector('#ln-next').onclick=()=>setMobileLane(activeLaneIdx()+1);
+  const selBtn=nav.querySelector('#ln-sel');
+  if(selBtn)selBtn.onclick=()=>{bulkLane=bulkLane===l.id?null:l.id;bulkSel.clear();render();};
   nav.querySelectorAll('.lanenav-dots i').forEach(d=>d.onclick=()=>setMobileLane(+d.dataset.i));
 }
 function applyMobileLane(){
@@ -374,7 +387,6 @@ function reopen(){if(!open)return;
   if(open.kind==='new')return openNewCard(open.opts);
   if(open.kind==='chooser')return openCreateChooser(open.cproject);
   if(open.kind==='newproj')return openNewProject();
-  if(open.kind==='runworker')return openRunWorker();
   if(open.kind==='context')return openContext();
   if(open.kind==='about')return openAbout();
   if(open.kind==='log')return openLog();
@@ -387,20 +399,6 @@ function reopen(){if(!open)return;
 
 // How to actually get work done: connect an agent and tell it to run the worker. Shown from
 // the Ready lane, since Ready is the worker's queue (top card goes first).
-function openRunWorker(){open={kind:'runworker'};
-  const url=`http://${location.host}/mcp`;
-  showSheet(`<div class="sheet-h"><div class="sheet-t">▶ Run the worker</div><button class="x" data-x>×</button></div>
-   <div class="sheet-b md">
-    <p>The board is driven by an <strong>MCP-connected agent</strong> (Claude, Codex, …). Connect once:</p>
-    <div class="logbox">claude mcp add --transport http cboard ${esc(url)}</div>
-    <p style="margin-top:10px">Then just tell the agent: <strong>“run the worker”</strong> (or invoke the
-    <code>kanban-worker</code> skill). It drains the <strong>Ready</strong> lane in order — the card on
-    <strong>top goes first</strong> — runs each in its own clean context, and parks finished work in
-    <strong>Test &amp; Review</strong> for you to approve.</p>
-    <p><strong>Reorder Ready by dragging</strong> to change what's worked next. Blocked or sent-back cards
-    come back with the worker's notes attached.</p>
-   </div>`);
-}
 // Board-level standing context: repo locations, test tooling, conventions — shared by every
 // card and handed to agents (via the get_context MCP tool) before any per-card context.
 function openContext(){open={kind:'context'};
@@ -418,7 +416,8 @@ function openContext(){open={kind:'context'};
      document.getElementById('ctx-save').onclick=()=>api('/api/context/save','POST',{body:document.getElementById('ctx-ta').value}).then(openContext);};
   });}
 function openAbout(){open={kind:'about'};
-  showSheet(`<div class="sheet-h"><div class="sheet-t">ℹ️ About cboard</div><button class="x" data-x>×</button></div>
+  const url=`http://${location.host}/mcp`;
+  showSheet(`<div class="sheet-h"><div class="sheet-t">❓ Help</div><button class="x" data-x>×</button></div>
    <div class="sheet-b md">
     <p><strong>The board is the filesystem.</strong> Every card is a folder; every change is a
     file you can read, diff, back up, and put in git. No database, no account, no cloud — your
@@ -430,8 +429,20 @@ function openAbout(){open={kind:'about'};
       <em>work</em> cards, from anywhere.</li>
       <li><strong>CLI</strong> — for scripts and automation.</li>
     </ul>
-    <p>It's built so an AI worker can actually do the work: each card carries its own brief,
-    context, logs, and review history right next to it.</p>
+
+    <div class="label">Connect an agent &amp; run the worker</div>
+    <p>cboard talks to agents over <strong>MCP</strong> — one endpoint, no plugin or skill to
+    install. Point any MCP client at <em>this</em> board:</p>
+    <div class="logbox">claude mcp add --transport http cboard ${esc(url)}</div>
+    <p style="margin-top:10px">Using Codex, Cursor, or another client? Add <code>${esc(url)}</code>
+    as an HTTP MCP server in its config.</p>
+    <p>Then tell your agent to <strong>“run the worker”</strong>. It drains the <strong>Ready</strong>
+    lane top-down — the card on <strong>top goes first</strong> (drag to reorder) — runs each in its
+    own clean context, records the result, and parks finished work in <strong>Test &amp; Review</strong>
+    for you to approve. It never marks anything Done on its own, and never reorders or invents cards.
+    Blocked or sent-back cards come back with the worker's notes attached.</p>
+    <p>The full worker contract ships with the board: connected clients can load it as the
+    <code>kanban-worker</code> prompt, and it's also in <code>AGENTS.md</code>.</p>
 
     <div class="label">Why Project → Epic → Ticket</div>
     <p>Three levels, read top-down as <strong>why → what → do</strong>:</p>

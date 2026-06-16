@@ -16,6 +16,15 @@ import (
 
 const mcpProtocolVersion = "2025-06-18"
 
+// The worker contract (AGENTS.md) is served as an MCP prompt. Clients that render prompts
+// (e.g. Claude Code) surface it as a slash command; others fall back to reading AGENTS.md.
+const (
+	workerPromptName = "kanban-worker"
+	workerPromptDesc = "Drive cboard as a deterministic worker: take Ready cards top-down, run each " +
+		"in isolation, record results, and park finished work in Test & Review (never Done). " +
+		"Use when asked to run the worker / drain the ready lane."
+)
+
 type rpcReq struct {
 	JSONRPC string          `json:"jsonrpc"`
 	ID      json.RawMessage `json:"id"` // absent → notification
@@ -291,8 +300,14 @@ func dispatchMCP(method string, params json.RawMessage) (any, *rpcErr) {
 		}
 		return map[string]any{
 			"protocolVersion": ver,
-			"capabilities":    map[string]any{"tools": map[string]any{}},
+			"capabilities":    map[string]any{"tools": map[string]any{}, "prompts": map[string]any{}},
 			"serverInfo":      map[string]any{"name": "cboard", "version": version},
+			// One-line nudge so the agent knows the worker contract is available without
+			// us spending always-on context on the full text — that lives in the prompt,
+			// loaded only when invoked.
+			"instructions": "This board exposes a `kanban-worker` prompt holding the full worker contract. " +
+				"When the user asks to run the worker / drain Ready, fetch that prompt and follow it; " +
+				"drive the board only through these MCP tools.",
 		}, nil
 	case "notifications/initialized":
 		return nil, nil
@@ -308,6 +323,26 @@ func dispatchMCP(method string, params json.RawMessage) (any, *rpcErr) {
 		return map[string]any{"tools": tools}, nil
 	case "tools/call":
 		return callTool(params)
+	case "prompts/list":
+		return map[string]any{"prompts": []map[string]any{{
+			"name":        workerPromptName,
+			"description": workerPromptDesc,
+		}}}, nil
+	case "prompts/get":
+		var p struct {
+			Name string `json:"name"`
+		}
+		json.Unmarshal(params, &p)
+		if p.Name != "" && p.Name != workerPromptName {
+			return nil, &rpcErr{Code: -32602, Message: "unknown prompt: " + p.Name}
+		}
+		return map[string]any{
+			"description": workerPromptDesc,
+			"messages": []map[string]any{{
+				"role":    "user",
+				"content": map[string]any{"type": "text", "text": workerContract},
+			}},
+		}, nil
 	default:
 		return nil, &rpcErr{Code: -32601, Message: "method not found: " + method}
 	}
