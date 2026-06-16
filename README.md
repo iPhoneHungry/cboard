@@ -30,6 +30,13 @@ chmod +x cboard && ./cboard
 
 Downloaded it through the browser instead? Clear Gatekeeper once: `xattr -d com.apple.quarantine cboard`.
 
+**Linux** — x86-64 (swap in `cboard-linux-arm64` on ARM):
+
+```sh
+curl -L -o cboard https://github.com/iPhoneHungry/cboard/releases/latest/download/cboard-linux-amd64
+chmod +x cboard && ./cboard
+```
+
 **Windows** — PowerShell:
 
 ```powershell
@@ -37,7 +44,7 @@ curl.exe -L -o cboard.exe https://github.com/iPhoneHungry/cboard/releases/latest
 .\cboard.exe
 ```
 
-*Linux: grab `cboard-linux-amd64` / `-arm64`, `chmod +x`, run. Prefer Go anywhere? `go install github.com/iPhoneHungry/cboard@latest && cboard`.*
+*Prefer Go anywhere? `go install github.com/iPhoneHungry/cboard@latest && cboard`.*
 
 `cboard` with no arguments opens the dashboard at **http://localhost:8787** and creates a board
 at `~/.cboard/board` (remembered for next time). Open the page and start stacking tickets for
