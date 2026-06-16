@@ -352,10 +352,12 @@ func init() {
 		},
 		mcpTool{
 			Name:        "get_context",
-			Description: "Read the board's global standing context — notes that apply to every card (repo locations, test tooling like 'when I say test, use X', conventions). Load this first, before per-card context.",
+			Description: "Read the board's global standing context — the broadest layer, shared by every card (repo locations, test tooling like 'when I say test, use X', conventions). Returns {context, docs, assets}: the standing note plus shared docs and file references (pull a doc/asset body with read_file). Load this first, before per-card context.",
 			InputSchema: obj(map[string]any{}),
 			handler: func(args map[string]any) (any, error) {
-				return map[string]any{"context": readBoardContext()}, nil
+				bc := boardContext()
+				stripDocContent(bc["docs"])
+				return map[string]any{"context": bc["body"], "docs": bc["docs"], "assets": bc["assets"]}, nil
 			},
 		},
 		mcpTool{

@@ -689,9 +689,10 @@ func saveBody(lane, cid, ticket, title, body string) error {
 	return os.WriteFile(p, []byte(serializeFM(meta)+"\n"+strings.TrimSpace(body)+"\n"), 0o644)
 }
 
-// Board-level standing context: notes every card shares (repo locations, test tooling,
-// conventions). Stored at context/board.md, surfaced in the dashboard and via the
-// get_context MCP tool, and loaded first (broadest layer) by the worker.
+// Board-level standing context is the broadest context layer — the peer of project/epic/ticket
+// at the top of the tree. Like them it carries a body plus shared docs and assets, all under
+// context/ (board.md, docs/, assets/), surfaced in the dashboard and via the get_context MCP
+// tool and loaded first by the worker.
 func readBoardContext() string {
 	return readText(mustJoin("context", "board.md"))
 }
@@ -700,6 +701,66 @@ func saveBoardContext(body string) error {
 	d := mustJoin("context")
 	os.MkdirAll(d, 0o755)
 	return os.WriteFile(filepath.Join(d, "board.md"), []byte(body), 0o644)
+}
+
+// boardContext returns the full board-level context node: the standing note, its shared docs
+// (content inlined for small text, like a project's), and its shared file assets — as references.
+func boardContext() map[string]any {
+	return map[string]any{
+		"body":   readBoardContext(),
+		"docs":   readDocs("context"),
+		"assets": listFiles(filepath.Join("context", "assets")),
+	}
+}
+
+var docNameRe = regexp.MustCompile(`(?i)\.(md|markdown|txt)$`)
+
+func addBoardDoc(name string) (string, error) {
+	name = filepath.Base(name)
+	if name == "" || name == "." {
+		name = "doc.md"
+	}
+	if !docNameRe.MatchString(name) {
+		name += ".md"
+	}
+	d := mustJoin("context", "docs")
+	os.MkdirAll(d, 0o755)
+	p := filepath.Join(d, name)
+	if !isFile(p) {
+		base := strings.TrimSuffix(name, filepath.Ext(name))
+		if err := os.WriteFile(p, []byte("# "+base+"\n\n"), 0o644); err != nil {
+			return "", err
+		}
+	}
+	return name, nil
+}
+
+func saveBoardDoc(name, body string) error {
+	d := mustJoin("context", "docs")
+	os.MkdirAll(d, 0o755)
+	return os.WriteFile(filepath.Join(d, filepath.Base(name)), []byte(body), 0o644)
+}
+
+// addBoardAsset saves a shared file under context/assets/ (collision-safe), returning the final
+// name. The board-level counterpart to addAsset; no card body to touch.
+func addBoardAsset(name string, raw []byte) (string, error) {
+	dir := mustJoin("context", "assets")
+	os.MkdirAll(dir, 0o755)
+	name = filepath.Base(name)
+	if name == "" || name == "." {
+		name = "file"
+	}
+	ext := filepath.Ext(name)
+	base := strings.TrimSuffix(name, ext)
+	final, n := name, 0
+	for isFile(filepath.Join(dir, final)) {
+		n++
+		final = fmt.Sprintf("%s-%d%s", base, n, ext)
+	}
+	if err := os.WriteFile(filepath.Join(dir, final), raw, 0o644); err != nil {
+		return "", err
+	}
+	return final, nil
 }
 
 func saveDoc(lane, cid, name, body string) error {

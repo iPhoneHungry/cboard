@@ -59,7 +59,7 @@ func handleGET(w http.ResponseWriter, r *http.Request) {
 	case p == "/api/projects":
 		sendJSON(w, 200, listProjects())
 	case p == "/api/context":
-		sendJSON(w, 200, map[string]any{"body": readBoardContext()})
+		sendJSON(w, 200, boardContext())
 	case strings.HasPrefix(p, "/files/"):
 		rel := path.Clean(strings.TrimPrefix(p, "/files/"))
 		abs, err := safeJoin(filepath.FromSlash(rel))
@@ -165,6 +165,15 @@ func handlePOST(w http.ResponseWriter, r *http.Request) {
 		err = archiveProject(s("id"))
 	case "/api/context/save":
 		err = saveBoardContext(s("body"))
+	case "/api/context/adddoc":
+		var name string
+		name, err = addBoardDoc(orDefault(s("name"), "doc.md"))
+		if err == nil {
+			sendJSON(w, 200, map[string]any{"ok": true, "name": name})
+			return
+		}
+	case "/api/context/savedoc":
+		err = saveBoardDoc(s("name"), s("body"))
 	case "/api/project/done":
 		done := true
 		if v, ok := d["done"].(bool); ok {
@@ -176,7 +185,11 @@ func handlePOST(w http.ResponseWriter, r *http.Request) {
 		raw, err = base64.StdEncoding.DecodeString(s("data"))
 		if err == nil {
 			var fn string
-			fn, err = addAsset(s("lane"), s("id"), s("ticketId"), orDefault(s("name"), "file"), raw)
+			if truthy(d["context"]) { // board-level shared asset (no card)
+				fn, err = addBoardAsset(orDefault(s("name"), "file"), raw)
+			} else {
+				fn, err = addAsset(s("lane"), s("id"), s("ticketId"), orDefault(s("name"), "file"), raw)
+			}
 			if err == nil {
 				sendJSON(w, 200, map[string]any{"ok": true, "file": fn})
 				return

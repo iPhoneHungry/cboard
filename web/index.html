@@ -421,19 +421,43 @@ function reopen(){if(!open)return;
 // the Ready lane, since Ready is the worker's queue (top card goes first).
 // Board-level standing context: repo locations, test tooling, conventions — shared by every
 // card and handed to agents (via the get_context MCP tool) before any per-card context.
+function ctxDocsHtml(docs){
+  if(!docs||!docs.length)return '<div class="empty">No shared docs yet — “+ Doc” to add notes every card should know.</div>';
+  return docs.map(d=>`<div class="trow" data-cdoc="${esc(d.name)}"><span class="tt">📄 ${esc(d.name)}</span>`+
+    (d.content!=null?'<span class="st st-todo">edit</span>':`<a href="/files/${encodeURI(d.path)}" target="_blank">Open ↗</a>`)+`</div>`).join('');
+}
 function openContext(){open={kind:'context'};
-  api('/api/context').then(r=>{const body=r.body||'';
+  api('/api/context').then(r=>{const body=r.body||'';const docs=r.docs||[];const node={assets:r.assets||[]};
    showSheet(`<div class="sheet-h"><div class="sheet-t">🧭 Board context</div><button class="x" data-x>×</button></div>
     <div class="sheet-b">
-     <div style="font-size:12.5px;color:var(--muted);font-weight:600;line-height:1.5;margin-bottom:12px">Standing context shared by every card — where repos live, test tooling (“when I say <em>test</em>, use…”), conventions. Agents load this first, before a card's own details.</div>
-     <div style="margin-bottom:12px"><button class="btn btn-g" id="ctx-edit">✏️ Edit</button></div>
-     <div class="md" id="ctx-md"></div></div>`);
+     <div style="font-size:12.5px;color:var(--muted);font-weight:600;line-height:1.5;margin-bottom:12px">Standing context shared by every card — where repos live, test tooling (“when I say <em>test</em>, use…”), conventions, plus shared docs and files. Agents load this first, before a card's own details.</div>
+     <div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap"><button class="btn btn-g" id="ctx-edit">✏️ Edit</button>${uploadCtrl()}<button class="btn btn-g" id="ctx-adddoc">+ Doc</button></div>
+     <div class="md" id="ctx-md"></div>
+     <div class="label">Shared docs</div>${ctxDocsHtml(docs)}
+     ${assetHtml(node)}</div>`);
    document.getElementById('ctx-md').innerHTML=body.trim()?safeMd(body):'<span class="empty">No board context yet. Add repo locations, test commands, conventions…</span>';
+   wireUpload({context:true});
+   wireAssets();
+   document.querySelectorAll('#sheet [data-cdoc]').forEach(r=>r.onclick=()=>openContextDoc(r.dataset.cdoc));
+   document.getElementById('ctx-adddoc').onclick=()=>askText('New shared doc','Doc name (e.g. conventions)').then(n=>{
+     if(n&&n.trim())api('/api/context/adddoc','POST',{name:n.trim()}).then(openContext);});
    document.getElementById('ctx-edit').onclick=()=>{const b=document.querySelector('.sheet-b');
      b.innerHTML=`<textarea id="ctx-ta" placeholder="# Repos&#10;- main app: ~/code/app (branch: dev)&#10;&#10;# Testing&#10;When I say “test”, run the Playwright harness in ~/code/app/e2e.">${esc(body)}</textarea>
       <div style="margin-top:12px;display:flex;gap:8px"><button class="btn btn-p" id="ctx-save">💾 Save</button><button class="btn btn-g" id="ctx-cancel">Cancel</button></div>`;
      document.getElementById('ctx-cancel').onclick=openContext;
      document.getElementById('ctx-save').onclick=()=>api('/api/context/save','POST',{body:document.getElementById('ctx-ta').value}).then(openContext);};
+  });}
+function openContextDoc(name){
+  api('/api/context').then(r=>{const d=(r.docs||[]).find(x=>x.name===name);if(!d)return;open={kind:'context',doc:name};
+   if(d.content==null){window.open('/files/'+encodeURI(d.path),'_blank');return;}
+   showSheet(`<div class="sheet-h"><button class="x" id="back">←</button><div class="sheet-t">📄 ${esc(name)}</div><button class="x" data-x>×</button></div>
+    <div class="sheet-b"><div style="margin-bottom:12px"><button class="btn btn-g" id="edit">✏️ Edit</button></div><div class="md" id="md"></div></div>`);
+   document.getElementById('md').innerHTML=d.content?safeMd(d.content):'<span class="empty">Empty doc.</span>';
+   document.getElementById('back').onclick=openContext;
+   document.getElementById('edit').onclick=()=>{const b=document.querySelector('.sheet-b');
+     b.innerHTML=`<textarea id="ta">${esc(d.content||'')}</textarea><div style="margin-top:12px;display:flex;gap:8px"><button class="btn btn-p" id="save">💾 Save</button><button class="btn btn-g" id="cancel">Cancel</button></div>`;
+     document.getElementById('cancel').onclick=()=>openContextDoc(name);
+     document.getElementById('save').onclick=()=>api('/api/context/savedoc','POST',{name,body:document.getElementById('ta').value}).then(()=>openContextDoc(name));};
   });}
 function openAbout(){open={kind:'about'};
   const url=`http://${location.host}/mcp`;

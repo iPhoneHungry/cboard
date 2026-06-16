@@ -49,7 +49,8 @@ human gate** — finished work is parked there; a person approves it to Done.
 - `read_file(path)` — pull the body of any doc/asset/context reference (utf-8, or base64 for
   binary). This is how you fetch content on demand instead of receiving it all up front.
 - `get_context` — the board's standing context (repo locations, test tooling, conventions)
-  that applies to every card. Load it first; it's the broadest context layer.
+  that applies to every card, plus its **shared docs and file assets** as references. Load it
+  first; it's the broadest context layer. Pull a doc/asset body with `read_file`.
 
 **Author / track**
 - `create_ticket(title [, project, epic, body])`, `create_epic(title [, project, body])`,

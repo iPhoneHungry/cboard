@@ -281,6 +281,70 @@ func TestNestedWorkContextLayering(t *testing.T) {
 	}
 }
 
+// TestBoardContextCarriesDocsAndAssets checks the global level is a full context peer: its
+// shared docs and file assets are returned alongside the standing note, and as references (no
+// inlined doc bodies) the way projects/cards are.
+func TestBoardContextCarriesDocsAndAssets(t *testing.T) {
+	newTestBoard(t)
+	if err := saveBoardContext("global note"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := addBoardDoc("conventions"); err != nil { // gets a .md extension
+		t.Fatal(err)
+	}
+	if _, err := addBoardAsset("logo.png", []byte{0x89, 'P', 'N', 'G'}); err != nil {
+		t.Fatal(err)
+	}
+
+	bc := boardContext()
+	if bc["body"] != "global note" {
+		t.Errorf("body = %v", bc["body"])
+	}
+	docs := asDocs(bc["docs"])
+	if !hasDocNamed(docs, "conventions.md") {
+		t.Fatalf("board doc missing: %#v", docs)
+	}
+	assets := asDocs(bc["assets"])
+	if !hasDocNamed(assets, "logo.png") {
+		t.Fatalf("board asset missing: %#v", assets)
+	}
+	if assets[0]["path"] != "context/assets/logo.png" {
+		t.Errorf("asset path = %v", assets[0]["path"])
+	}
+
+	// get_context (the agent's view) returns docs/assets as references — no inlined doc bodies.
+	res, err := callContextTool()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res["context"] != "global note" {
+		t.Errorf("get_context context = %v", res["context"])
+	}
+	for _, d := range asDocs(res["docs"]) {
+		if _, inlined := d["content"]; inlined {
+			t.Errorf("get_context doc %v should be a reference, not inlined", d["name"])
+		}
+	}
+	if !hasDocNamed(asDocs(res["docs"]), "conventions.md") || !hasDocNamed(asDocs(res["assets"]), "logo.png") {
+		t.Errorf("get_context missing docs/assets: %#v", res)
+	}
+}
+
+// callContextTool invokes the get_context MCP tool handler the way an agent would.
+func callContextTool() (map[string]any, error) {
+	for _, tl := range mcpTools {
+		if tl.Name == "get_context" {
+			r, err := tl.handler(map[string]any{})
+			if err != nil {
+				return nil, err
+			}
+			return r.(map[string]any), nil
+		}
+	}
+	t := map[string]any{}
+	return t, nil
+}
+
 func asDocs(v any) []map[string]any {
 	d, _ := v.([]map[string]any)
 	return d
