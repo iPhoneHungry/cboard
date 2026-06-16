@@ -30,6 +30,10 @@ jobs:
           open('app.js', 'w').write(js)
           PY
           node --check app.js && rm app.js
+      # Syntax-check the browser clipper extension's scripts too.
+      - name: Check extension JS
+        if: matrix.os == 'ubuntu-latest'
+        run: for f in extension/*.js; do node --check "$f"; done
 
   # Drives the real dashboard in a headless browser through the full lifecycle
   # (create modal, move, inline edit, blocked-result panel, archive, delete, context).

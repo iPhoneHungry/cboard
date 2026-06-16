@@ -123,6 +123,13 @@ goal. The payoff: each piece of work carries *exactly* the context it needs, not
 And because the board is just folders and JSON, you can `git` it, `grep` it, back it up, or
 read it with your eyeballs. Nothing is hidden in a database.
 
+## Browser clipper
+
+A bundled MV3 browser extension (Chrome + Firefox) lets you screenshot the page you're on,
+**annotate** it (box / arrow / text / pen), optionally record your clicks as repro steps, and file
+it as a ticket — with the annotated shot attached — straight to your board over MCP. The screenshot
+previews inline on the card. Load it unpacked from [`extension/`](extension/) (see its README).
+
 ## Going deeper
 
 The on-disk layout, how cards flow through the lanes, ordering, archiving, networking, and the

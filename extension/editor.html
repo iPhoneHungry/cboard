@@ -1,0 +1,59 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>cboard clipper — annotate</title>
+<style>
+  :root { --p: #667eea; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: system-ui, sans-serif; color: #1e2030; display: flex; height: 100vh; }
+  #stage { flex: 1; background: #2b2d3a; overflow: auto; display: flex; align-items: flex-start; justify-content: center; padding: 16px; }
+  #wrap { position: relative; line-height: 0; box-shadow: 0 8px 30px rgba(0,0,0,.4); }
+  #canvas { max-width: 100%; height: auto; cursor: crosshair; display: block; }
+  #side { width: 340px; flex: none; border-left: 1px solid #e5e7eb; padding: 16px; overflow: auto; }
+  .toolbar { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 10px; background: #1f2130; }
+  .tool { padding: 6px 10px; border: 0; border-radius: 6px; background: #3a3d50; color: #cfd2e6; font-size: 13px; cursor: pointer; }
+  .tool.active { background: var(--p); color: #fff; }
+  .tool:hover { filter: brightness(1.1); }
+  #color { width: 34px; height: 30px; border: 0; background: none; padding: 0; cursor: pointer; }
+  h1 { font-size: 15px; margin: 0 0 10px; }
+  label { font-size: 12px; font-weight: 700; display: block; margin: 12px 0 4px; }
+  input[type=text], textarea { width: 100%; padding: 8px 9px; border: 1px solid #d1d5db; border-radius: 7px; font-size: 13px; font-family: inherit; }
+  textarea { resize: vertical; }
+  .meta { font-size: 11px; color: #6b7280; margin: 8px 0; word-break: break-all; }
+  button.go { width: 100%; margin-top: 14px; padding: 10px; border: 0; border-radius: 8px; background: var(--p); color: #fff; font-weight: 700; font-size: 14px; cursor: pointer; }
+  button.go:disabled { opacity: .6; cursor: default; }
+  #status { margin-top: 10px; font-size: 13px; }
+  #status a { color: var(--p); }
+  .ok { color: #16a34a; } .err { color: #dc2626; }
+</style>
+</head>
+<body>
+  <div style="flex:1;display:flex;flex-direction:column;min-width:0">
+    <div class="toolbar">
+      <button class="tool" data-tool="box">▭ Box</button>
+      <button class="tool" data-tool="arrow">↗ Arrow</button>
+      <button class="tool" data-tool="text">T Text</button>
+      <button class="tool" data-tool="pen">✎ Pen</button>
+      <input id="color" type="color" value="#eb2f96" title="Color">
+      <button class="tool" id="undo">⟲ Undo</button>
+      <button class="tool" id="clear">✕ Clear</button>
+    </div>
+    <div id="stage"><div id="wrap"><canvas id="canvas"></canvas></div></div>
+  </div>
+
+  <div id="side">
+    <h1>New cboard ticket</h1>
+    <label for="title">Title</label>
+    <input id="title" type="text" placeholder="Short summary of the issue">
+    <label for="desc">Description</label>
+    <textarea id="desc" rows="4" placeholder="What's wrong / what you expected"></textarea>
+    <label for="steps">Steps to reproduce</label>
+    <textarea id="steps" rows="6" placeholder="1. …&#10;2. …"></textarea>
+    <div class="meta" id="pagemeta"></div>
+    <button class="go" id="file">Create ticket</button>
+    <div id="status"></div>
+  </div>
+<script src="editor.js"></script>
+</body>
+</html>

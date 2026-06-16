@@ -1,0 +1,33 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  body { font-family: system-ui, sans-serif; width: 300px; margin: 0; padding: 14px; color: #1e2030; }
+  h1 { font-size: 15px; margin: 0 0 4px; }
+  p.sub { font-size: 12px; color: #6b7280; margin: 0 0 12px; }
+  label { font-size: 12px; font-weight: 600; display: block; margin: 10px 0 4px; }
+  input[type=text] { width: 100%; box-sizing: border-box; padding: 7px 9px; border: 1px solid #d1d5db; border-radius: 7px; font-size: 13px; }
+  .row { display: flex; align-items: center; gap: 8px; margin-top: 12px; font-size: 13px; }
+  button { width: 100%; margin-top: 14px; padding: 9px; border: 0; border-radius: 8px; background: #667eea; color: #fff; font-weight: 700; font-size: 13px; cursor: pointer; }
+  button:hover { background: #5468d4; }
+  .hint { font-size: 11px; color: #9ca3af; margin-top: 8px; line-height: 1.4; }
+</style>
+</head>
+<body>
+  <h1>Report to cboard</h1>
+  <p class="sub">Capture this page, annotate it, file a ticket.</p>
+
+  <label for="endpoint">Board endpoint</label>
+  <input id="endpoint" type="text" placeholder="http://localhost:8787" autocomplete="off">
+
+  <div class="row">
+    <input id="recording" type="checkbox">
+    <label for="recording" style="margin:0;font-weight:600">Record my clicks as repro steps</label>
+  </div>
+
+  <button id="capture">📸 Capture &amp; annotate</button>
+  <div class="hint">Recording keeps logging steps on the pages you visit until you turn it off. The annotated shot is attached to the ticket and previews on the card.</div>
+</body>
+<script src="popup.js"></script>
+</html>
