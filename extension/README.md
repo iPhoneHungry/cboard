@@ -49,5 +49,7 @@ calls happen there. Endpoint is stored per-browser; the captured image and recor
   point at another host, add it to `host_permissions` in `manifest.json` (a remote board would
   also need to be reachable and is unauthenticated — trusted networks only).
 - **Visible viewport** is captured (one frame). Full-page scroll-stitch is a future addition.
-- **Step recording** keeps logging across pages until you turn it off in the popup.
+- **Step recording** logs your clicks while it's on; only the steps from the **page you capture**
+  are filed (interactions on the board or other tabs are dropped). Turning it on also attaches to
+  the tab that's open at that moment, so you don't have to reload first. Toggle it off in the popup.
 - Annotations are baked into the PNG at full resolution before upload.

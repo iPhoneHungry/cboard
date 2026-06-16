@@ -1,5 +1,8 @@
 // Content script: while recording is on, report lightweight repro steps to the worker. It
 // caches the on/off state (queried on load, updated by broadcast) so it stays silent otherwise.
+// Guard against double-binding: this can be both declared (manifest) and injected on demand.
+if (window.__cboardRecorder) { /* already attached */ } else {
+window.__cboardRecorder = true;
 
 let on = false;
 chrome.runtime.sendMessage({ type: "isRecording" }).then((r) => { on = !!(r && r.on); }).catch(() => {});
@@ -22,3 +25,5 @@ document.addEventListener("change", (e) => {
   const t = e.target;
   if (t && /^(INPUT|SELECT|TEXTAREA)$/.test(t.tagName)) report("Set " + label(t));
 }, true);
+
+}

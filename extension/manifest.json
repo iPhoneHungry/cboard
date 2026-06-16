@@ -1,9 +1,9 @@
 {
   "manifest_version": 3,
   "name": "cboard clipper",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Annotate the current page and file it as a cboard ticket — screenshot, notes, and repro steps — straight to your local board over MCP.",
-  "permissions": ["activeTab", "tabs", "storage"],
+  "permissions": ["activeTab", "tabs", "storage", "scripting"],
   "host_permissions": ["http://localhost:8787/*", "http://127.0.0.1:8787/*"],
   "background": { "service_worker": "background.js" },
   "action": { "default_popup": "popup.html", "default_title": "Report to cboard" },

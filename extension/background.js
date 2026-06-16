@@ -56,6 +56,7 @@ async function captureToEditor(tab) {
     image: dataUrl,
     url: tab.url || "",
     title: tab.title || "",
+    tabId: tab.id,            // so we only file steps recorded on THIS page
     ua: navigator.userAgent,
     at: new Date().toISOString(),
   };
@@ -63,7 +64,7 @@ async function captureToEditor(tab) {
   await chrome.tabs.create({ url: chrome.runtime.getURL("editor.html") });
 }
 
-chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   (async () => {
     try {
       switch (msg.type) {
@@ -75,7 +76,18 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         }
         case "setRecording": {
           await chrome.storage.session.set({ recording: !!msg.on });
-          if (msg.on) await chrome.storage.session.set({ steps: [] });
+          if (msg.on) {
+            await chrome.storage.session.set({ steps: [] });
+            // Attach the recorder to the page that's open right now — the declared content
+            // script only runs on pages loaded after this point, so without this an already-
+            // open tab wouldn't record until you reloaded it. (Dedupes via a window guard.)
+            try {
+              const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+              if (tab && tab.id && /^https?:/.test(tab.url || "")) {
+                await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ["recorder.js"] });
+              }
+            } catch { /* restricted page (chrome://, store, etc.) — ignore */ }
+          }
           broadcastRecording(!!msg.on);
           sendResponse({ ok: true });
           break;
@@ -88,7 +100,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         case "step": {
           const { recording, steps = [] } = await chrome.storage.session.get(["recording", "steps"]);
           if (recording && msg.text) {
-            steps.push(msg.text);
+            steps.push({ tabId: sender.tab && sender.tab.id, text: msg.text });
             await chrome.storage.session.set({ steps });
           }
           sendResponse({ ok: true });
@@ -96,7 +108,10 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         }
         case "getCapture": {
           const { capture, steps = [] } = await chrome.storage.session.get(["capture", "steps"]);
-          sendResponse({ ok: true, capture, steps });
+          // Only the captured page's steps — drop interactions recorded on other tabs (the
+          // board, docs you opened, etc.).
+          const mine = (steps || []).filter((s) => !capture || s.tabId === capture.tabId).map((s) => s.text);
+          sendResponse({ ok: true, capture, steps: mine });
           break;
         }
         case "file": {
